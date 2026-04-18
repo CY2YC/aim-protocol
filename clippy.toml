@@ -1,1 +1,25 @@
+# Clippy configuration for AIM Protocol
 
+# Deny certain patterns
+deny = [
+    "clippy::unwrap_used",
+    "clippy::expect_used",
+    "clippy::panic",
+]
+
+# Warn on others
+warn = [
+    "clippy::all",
+    "clippy::pedantic",
+    "clippy::nursery",
+    "clippy::cargo",
+]
+
+# Allow specific patterns where needed
+allow = [
+    "clippy::module_name_repetitions",
+    "clippy::missing_errors_doc",
+]
+
+# MSRV
+msrv = "1.78"
