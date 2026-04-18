@@ -2,4 +2,4 @@
 
 pub mod replay;
 
-pub use replay::{ReplayWindow, SessionKeyManager, SecureSession};
+pub use replay::{ReplayWindow, SecureSession, SessionKeyManager};

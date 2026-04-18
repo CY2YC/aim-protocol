@@ -2,13 +2,13 @@
 #![no_main]
 
 //! AIM Protocol XDP Firewall - Kernel-space eBPF Program
-//! 
+//!
 //! Performs high-performance packet filtering at the kernel level.
 //! Uses Aya framework for pure-Rust eBPF development [^56^].
 
 use aya_ebpf::{
     bindings::xdp_action,
-    helpers::{bpf_ktime_get_ns, bpf_get_smp_processor_id},
+    helpers::{bpf_get_smp_processor_id, bpf_ktime_get_ns},
     macros::{map, xdp},
     maps::{HashMap, LruHashMap, PerCpuArray, RingBuf},
     programs::XdpContext,
@@ -156,7 +156,7 @@ fn try_aim_firewall(ctx: &XdpContext) -> Result<u32, ()> {
 
     // Calculate transport header offset
     let transport_start = ip_start + ip_header_len;
-    
+
     // For TCP: header is variable length, minimum 20 bytes
     // For UDP: header is fixed 8 bytes
     let aim_header_offset = if protocol == IP_PROTO_TCP {
@@ -176,7 +176,7 @@ fn try_aim_firewall(ctx: &XdpContext) -> Result<u32, ()> {
 
     // Parse AIM trusted header
     let aim_hdr = unsafe { &*(aim_header_offset as *const AimTrustedHeader) };
-    
+
     // Byte-swap from network order
     let zone_id = u32::from_be(aim_hdr.zone_id);
     let reputation = u32::from_be(aim_hdr.reputation);
@@ -207,7 +207,7 @@ fn try_aim_firewall(ctx: &XdpContext) -> Result<u32, ()> {
     // Packet passed all checks
     log_event(ctx, EventType::Pass, src_ip, dst_ip, zone_id, reputation);
     increment_stat(|s| s.passed += 1);
-    
+
     // Log high-reputation traffic for monitoring
     if reputation > 9000 {
         info!(ctx, "High reputation packet from zone {} (rep={})", zone_id, reputation);
@@ -227,7 +227,7 @@ fn log_event(
 ) {
     if let Some(mut entry) = EVENTS.reserve::<FirewallEvent>(0) {
         let timestamp_ns = unsafe { bpf_ktime_get_ns() };
-        
+
         entry.write(FirewallEvent {
             event_type: event_type as u8,
             src_ip,
@@ -236,7 +236,7 @@ fn log_event(
             reputation,
             timestamp_ns,
         });
-        
+
         entry.submit(0);
     }
 }

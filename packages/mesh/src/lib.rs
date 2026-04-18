@@ -5,5 +5,5 @@
 pub mod bootstrap;
 pub mod reputation;
 
-pub use bootstrap::{resilient_bootstrap, BootstrapConfig, BootstrapResult, BootstrapBehaviour};
-pub use reputation::{ReputationManager, ReputationEntry, calculate_reputation_update};
+pub use bootstrap::{BootstrapBehaviour, BootstrapConfig, BootstrapResult, resilient_bootstrap};
+pub use reputation::{ReputationEntry, ReputationManager, calculate_reputation_update};

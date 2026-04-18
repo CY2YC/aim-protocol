@@ -1,5 +1,5 @@
 //! AIM Protocol Core Library
-//! 
+//!
 //! Post-quantum cryptographic primitives, identity management,
 //! secure sessions, and revocation.
 
@@ -10,8 +10,8 @@ pub mod revocation;
 pub mod session;
 
 // Re-exports for ergonomic API
-pub use crypto::{dilithium, kyber, hybrid, kdf};
+pub use crypto::{dilithium, hybrid, kdf, kyber};
 pub use handshake::{Handshake, HandshakeState, SessionKeys, perform_handshake};
 pub use identity::{DigitalID, DigitalIDSecret, RecoveryShare};
-pub use revocation::{RevocationChecker, RevocationStatus, RevocationEntry};
-pub use session::replay::{ReplayWindow, SessionKeyManager, SecureSession};
+pub use revocation::{RevocationChecker, RevocationEntry, RevocationStatus};
+pub use session::replay::{ReplayWindow, SecureSession, SessionKeyManager};
