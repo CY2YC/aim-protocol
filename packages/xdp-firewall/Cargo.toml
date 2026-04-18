@@ -1,1 +1,27 @@
+[package]
+name = "aim-xdp-firewall"
+version = "0.1.0"
+edition = "2021"
+authors = ["AIM Protocol Contributors"]
+license = "MIT OR Apache-2.0"
+description = "XDP kernel-mode packet filter for AIM Protocol"
 
+[dependencies]
+# eBPF user-space
+aya = { version = "0.13", features = ["async_tokio"] }
+aya-log = "0.2"
+tokio = { workspace = true }
+anyhow = { workspace = true }
+clap = { version = "4.5", features = ["derive"] }
+log = "0.4"
+env_logger = "0.11"
+
+# Common types
+aim-core = { path = "../core" }
+
+[build-dependencies]
+aya-tool = { version = "0.13" }
+
+[[bin]]
+name = "aim-xdp-ctl"
+path = "src/main.rs"
