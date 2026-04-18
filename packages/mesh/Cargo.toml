@@ -1,1 +1,32 @@
+[package]
+name = "aim-mesh"
+version = "0.1.0"
+edition = "2021"
+authors = ["AIM Protocol Contributors"]
+license = "MIT OR Apache-2.0"
+description = "Mesh networking, peer discovery, and reputation system"
 
+[dependencies]
+aim-core = { path = "../core" }
+
+# Async runtime
+tokio = { workspace = true, features = ["full"] }
+futures = { workspace = true }
+
+# P2P networking
+libp2p = { version = "0.53", features = ["tcp", "tls", "dns", "async-std", "noise", "yamux", "gossipsub", "mdns", "kad"] }
+
+# Serialization
+serde = { workspace = true }
+postcard = { workspace = true }
+
+# Utilities
+rand = { workspace = true }
+tracing = { workspace = true }
+thiserror = { workspace = true }
+
+# Time
+chrono = "0.4"
+
+[dev-dependencies]
+tokio-test = "0.4"
