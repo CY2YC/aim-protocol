@@ -20,13 +20,14 @@ inherits = "release"
 
 [workspace.dependencies]
 # Cryptography - Using production-ready crates
-ml-kem = "0.2.0"  # FIPS 203 compliant, pure Rust [^19^]
-ml-dsa = { version = "0.1.0-rc.8" }  # FIPS 204 compliant
+ml-kem = "0.3.0"  # Updated from 0.2.0 - API changed
+ml-dsa = "0.2.0"  # Updated from rc version to stable
 sha2 = "0.10"
 hkdf = "0.12"
 blake3 = "1.5"
 rand = { version = "0.8", features = ["std", "std_rng"] }
 rand_core = "0.6"
+x25519-dalek = { version = "2.0", features = ["getrandom", "zeroize"] }  # ADDED
 
 # Serialization
 serde = { version = "1.0", features = ["derive"] }
@@ -45,6 +46,10 @@ anyhow = "1.0"
 hex = "0.4"
 zeroize = { version = "1.7", features = ["derive"] }
 constant_time_eq = "0.3"
+# ADDED missing utilities
+monotree = "0.3"  # For Sparse Merkle Tree
+bloomfilter = "1.0"  # For Bloom filter
+shamir-vault = "2.0"  # Updated from 1.3.0
 
 # Logging
 tracing = "0.1"
