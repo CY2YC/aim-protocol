@@ -53,6 +53,3 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 # Testing
 criterion = { version = "0.5", features = ["html_reports"] }
 proptest = "1.4"
-
-# P2P networking (placeholder for future)
-libp2p = { version = "0.53", optional = true }
