@@ -110,7 +110,7 @@ impl DigitalID {
     }
 
     /// Generate 3-of-5 Shamir secret sharing recovery shares
-    /// CRITICAL: Uses production-grade shamir-vault crate [^32^]
+    /// CRITICAL: Uses production-grade shamir-vault crate
     pub fn generate_recovery_shares(&self, secret: &DigitalIDSecret) -> Vec<RecoveryShare> {
         use shamir_vault::{split_secret, ShamirShare};
 
