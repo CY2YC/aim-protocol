@@ -134,7 +134,18 @@
 
 ## References
 
-- NIST FIPS 203, 204, 205 [^79^][^83^]
-- Sybil/Eclipse Attack Analysis [^85^]
-- XDP Performance and Security [^69^][^86^]
-- libp2p Security [^48^]
+[^19^]: RustCrypto. *ml-kem and ml-dsa crates*. [https://github.com/RustCrypto/ML-KEM](https://github.com/RustCrypto/ML-KEM)[citation:1][citation:2]
+
+[^32^]: Shamir, Adi. *How to Share a Secret*. Communications of the ACM, Vol. 22, No. 11, pp. 612–613, November 1979. [https://dl.acm.org/doi/10.1145/359168.359176](https://dl.acm.org/doi/10.1145/359168.359176)[citation:3]
+
+[^48^]: libp2p Documentation. *Kademlia DHT and GossipSub Specification*. [https://github.com/libp2p/specs](https://github.com/libp2p/specs)[citation:4]
+
+[^69^]: Høiland-Jørgensen, Toke, et al. *The eXpress Data Path: Fast Programmable Packet Processing in the Operating System Kernel*. Proceedings of the 14th International Conference on emerging Networking EXperiments and Technologies (CoNEXT '18). ACM, 2018. [https://doi.org/10.1145/3281411.3281443](https://doi.org/10.1145/3281411.3281443)[citation:6]
+
+[^79^]: National Institute of Standards and Technology (NIST). *FIPS 203: Module-Lattice-Based Key-Encapsulation Mechanism Standard*. August 13, 2024. [https://doi.org/10.6028/NIST.FIPS.203](https://doi.org/10.6028/NIST.FIPS.203)[citation:7]
+
+[^83^]: National Institute of Standards and Technology (NIST). *FIPS 204: Module-Lattice-Based Digital Signature Standard*. August 13, 2024. [https://doi.org/10.6028/NIST.FIPS.204](https://doi.org/10.6028/NIST.FIPS.204)[citation:8]
+
+[^85^]: Heilman, Ethan, et al. *Eclipse Attacks on Bitcoin's Peer-to-Peer Network*. 24th USENIX Security Symposium, pp. 129–144, August 2015. [https://www.usenix.org/conference/usenixsecurity15/technical-sessions/presentation/heilman](https://www.usenix.org/conference/usenixsecurity15/technical-sessions/presentation/heilman)[citation:5]
+
+[^86^]: Bertrone, Matteo, et al. *Accelerating Linux Security with eBPF iptables*. Netdev 0x13, March 2019. [https://legacy.netdevconf.info/0x13/session.html?talk=ebpf-iptables](https://legacy.netdevconf.info/0x13/session.html?talk=ebpf-iptables)
