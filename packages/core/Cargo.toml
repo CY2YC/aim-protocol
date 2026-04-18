@@ -7,6 +7,11 @@ license = "MIT OR Apache-2.0"
 description = "Core cryptographic and identity primitives for AIM Protocol"
 rust-version = "1.78"
 
+[features]
+default = ["std"]
+std = []
+no_std = []
+
 [dependencies]
 # NIST PQC - FIPS 203/204 compliant [^19^][^12^]
 ml-kem = { version = "0.2.0", default-features = false }
