@@ -8,6 +8,11 @@ members = [
 ]
 resolver = "2"
 
+[features]
+default = ["std"]
+std = []
+no_std = []
+
 [profile.release]
 opt-level = 3
 lto = "fat"
