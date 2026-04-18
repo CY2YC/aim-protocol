@@ -195,7 +195,12 @@ fn bench_ml_kem(c: &mut Criterion) {
 
 ## References
 
-- FIPS 203 Performance Analysis [^79^]
-- FIPS 204 Performance Analysis [^83^]
-- XDP Performance Research [^69^][^86^]
-- libp2p Performance Tuning [^48^]
+[^48^]: libp2p Documentation. *Performance Tuning and Benchmarks*. [https://github.com/libp2p/specs/tree/master/perf](https://github.com/libp2p/specs/tree/master/perf)
+
+[^69^]: Høiland-Jørgensen, Toke, et al. *The eXpress Data Path: Fast Programmable Packet Processing in the Operating System Kernel*. USENIX ATC, 2018. [https://www.usenix.org/conference/atc18/presentation/hoiland-jorgensen](https://www.usenix.org/conference/atc18/presentation/hoiland-jorgensen)
+
+[^79^]: National Institute of Standards and Technology (NIST). *FIPS 203: Module-Lattice-Based Key-Encapsulation Mechanism Standard*. August 13, 2024. [https://doi.org/10.6028/NIST.FIPS.203](https://doi.org/10.6028/NIST.FIPS.203)
+
+[^83^]: National Institute of Standards and Technology (NIST). *FIPS 204: Module-Lattice-Based Digital Signature Standard*. August 13, 2024. [https://doi.org/10.6028/NIST.FIPS.204](https://doi.org/10.6028/NIST.FIPS.204)
+
+[^86^]: Bertrone, Matteo, et al. *Accelerating Linux Security with eBPF iptables*. Netdev 0x13, 2019. [https://legacy.netdevconf.info/0x13/session.html?talk-ebpf-iptables](https://legacy.netdevconf.info/0x13/session.html?talk-ebpf-iptables)
