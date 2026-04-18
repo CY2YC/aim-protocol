@@ -30,7 +30,7 @@ A production-grade, zero-trust, physically anchored mesh network with NIST-appro
 
 ```bash
 # Clone repository
-git clone https://github.com/CY2YC/aim-protocol
+git clone https://github.com/CY2YC/aim-protocol.git
 cd aim-protocol
 
 # Build all packages
