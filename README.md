@@ -60,13 +60,11 @@ cargo bench
 
 ## Architecture
 
-[docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md)
-
-See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for detailed system design.
+See [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md) for detailed system design.
 
 ## Security
 
-See [docs/THREAT_MODEL.md](docs/THREAT_MODEL.md) for adversary model and mitigations.
+See [docs/THREAT_MODEL.md](./docs/THREAT_MODEL.md) for adversary model and mitigations.
 
 ## License
 
