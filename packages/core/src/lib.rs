@@ -9,9 +9,9 @@ pub mod identity;
 pub mod revocation;
 pub mod session;
 
-// Re-exports for ergonomic API
-pub use crypto::{dilithium, kyber, hybrid, kdf};
-pub use handshake::{Handshake, HandshakeState, SessionKeys, perform_handshake};
-pub use identity::{DigitalID, DigitalIDSecret, RecoveryShare};
-pub use revocation::{RevocationChecker, RevocationStatus, RevocationEntry};
-pub use session::replay::{ReplayWindow, SessionKeyManager, SecureSession};
+// Public re-exports (matches ARCHITECTURE.md clean API requirement)
+pub use crypto::*;
+pub use handshake::Handshake;
+pub use identity::{Identity, ShamirShare}; // once implemented
+pub use session::{Session, ReplayWindow};
+pub use revocation::RevocationStore;
