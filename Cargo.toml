@@ -1,8 +1,10 @@
 [workspace]
 members = [
-    "packages/core",
-    "packages/mesh", 
     "packages/cli",
+    "packages/core",
+    "packages/mesh",
+    "packages/xdp-firewall",
+    "packages/xdp-firewall-ebpf",
 ]
 resolver = "2"
 
