@@ -19,9 +19,6 @@ env_logger = "0.11"
 # Common types
 aim-core = { path = "../core" }
 
-[build-dependencies]
-aya-tool = { version = "0.13" }
-
 [[bin]]
 name = "aim-xdp-ctl"
 path = "src/main.rs"
