@@ -98,7 +98,7 @@ pub mod dilithium {
 
 pub mod kyber {
     use super::*;
-    use ml_kem::{Ciphertext, DecapsulationKey, EncapsulationKey, MlKem768};
+    use ml_kem::{Ciphertext, Decapsulate, Encapsulate, MlKem768};
 
     /// ML-KEM-768 public key size (1184 bytes)
     pub const PUBLIC_KEY_LENGTH: usize = 1184;
