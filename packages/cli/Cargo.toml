@@ -1,1 +1,42 @@
+[package]
+name = "aim-cli"
+version = "0.1.0"
+edition = "2021"
+authors = ["AIM Protocol Contributors"]
+license = "MIT OR Apache-2.0"
+description = "CLI for AIM Protocol"
 
+[[bin]]
+name = "aim"
+path = "src/main.rs"
+
+[dependencies]
+aim-core = { path = "../core" }
+aim-mesh = { path = "../mesh" }
+
+# CLI framework
+clap = { version = "4.5", features = ["derive", "env"] }
+
+# Async
+tokio = { workspace = true, features = ["full"] }
+
+# Crypto utilities
+rand = { workspace = true }
+
+# Serialization
+serde = { workspace = true }
+serde_json = "1.0"
+
+# Logging
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true, features = ["env-filter"] }
+
+# Error handling
+anyhow = { workspace = true }
+
+# Terminal
+indicatif = "0.17"
+console = "0.15"
+
+[dev-dependencies]
+tokio-test = "0.4"
