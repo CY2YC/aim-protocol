@@ -1,1 +1,44 @@
+[package]
+name = "aim-core"
+version = "0.1.0"
+edition = "2021"
+authors = ["AIM Protocol Contributors"]
+license = "MIT OR Apache-2.0"
+description = "Core cryptographic and identity primitives for AIM Protocol"
+rust-version = "1.78"
 
+[features]
+default = ["std"]
+std = []
+no_std = []
+
+[dependencies]
+# NIST PQC - FIPS 203/204 compliant [^19^][^12^]
+ml-kem = { version = "0.2.0", default-features = false }
+ml-dsa = { version = "0.1.0", default-features = false }
+
+# Cryptographic utilities
+sha2 = { workspace = true, default-features = false }
+hkdf = { workspace = true }
+blake3 = { workspace = true }
+rand = { workspace = true }
+rand_core = { workspace = true }
+
+# Secret sharing - using shamir-vault for no_std support [^32^]
+shamir-vault = { version = "1.2", default-features = false }
+
+# Serialization
+serde = { workspace = true, default-features = false, features = ["derive"] }
+postcard = { workspace = true }
+
+# Security
+zeroize = { workspace = true, features = ["derive"] }
+constant_time_eq = { workspace = true }
+
+# Error handling
+thiserror = { workspace = true }
+
+[dev-dependencies]
+criterion = { workspace = true }
+proptest = { workspace = true }
+rand = { workspace = true, features = ["std_rng"] }
