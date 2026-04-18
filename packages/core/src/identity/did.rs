@@ -112,7 +112,7 @@ impl DigitalID {
     /// Generate 3-of-5 Shamir secret sharing recovery shares
     /// CRITICAL: Uses production-grade shamir-vault crate [^32^]
     pub fn generate_recovery_shares(&self, secret: &DigitalIDSecret) -> Vec<RecoveryShare> {
-        use shamir_vault::shamir::{self, Share};
+        use shamir_vault::{split_secret, ShamirShare};
 
         // Combine secrets for recovery
         let mut master_secret = Vec::new();
@@ -121,29 +121,29 @@ impl DigitalID {
         master_secret.extend_from_slice(&secret.recovery_seed);
 
         // Split into 5 shares, need 3 to reconstruct
-        let shares =
-            shamir::split_secret(&master_secret, 3, 5).expect("Failed to generate recovery shares");
+        let shares = split_secret(&master_secret, 3, 5)
+            .expect("Failed to generate recovery shares");
 
         shares
             .into_iter()
-            .map(|s| RecoveryShare { index: s.x as u8, value: s.y })
+            .map(|s| RecoveryShare { index: s.index as u8, value: s.value })
             .collect()
     }
 
     /// Recover secrets from shares (need at least threshold)
     pub fn recover_from_shares(shares: &[RecoveryShare]) -> Option<Vec<u8>> {
-        use shamir_vault::shamir::Share;
+        use shamir_vault::{recover_secret, ShamirShare};
 
         if shares.len() < 3 {
             return None;
         }
 
-        let shamir_shares: Vec<Share> = shares
+        let shamir_shares: Vec<ShamirShare> = shares
             .iter()
-            .map(|s| Share { x: s.index as usize, y: s.value.clone() })
+            .map(|s| ShamirShare { index: s.index as usize, value: s.value.clone() })
             .collect();
 
-        shamir::recover_secret(&shamir_shares).ok()
+        recover_secret(&shamir_shares).ok()
     }
 
     /// Rotate to new epoch (post-compromise security)
