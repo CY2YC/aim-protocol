@@ -21,7 +21,7 @@ inherits = "release"
 [workspace.dependencies]
 # Cryptography - Using production-ready crates
 ml-kem = "0.2.0"  # FIPS 203 compliant, pure Rust [^19^]
-ml-dsa = "0.1.0-rc.8"  # FIPS 204 compliant
+ml-dsa = { version = "0.1.0-rc.8" }  # FIPS 204 compliant
 sha2 = "0.10"
 hkdf = "0.12"
 blake3 = "1.5"
