@@ -60,6 +60,8 @@ cargo bench
 
 ## Architecture
 
+[docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md)
+
 See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for detailed system design.
 
 ## Security
