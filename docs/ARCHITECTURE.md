@@ -9,7 +9,7 @@ The AIM (Authenticated Identity Mesh) Protocol is a production-grade, zero-trust
 ### 1. Cryptographic Layer (`aim-core`)
 
 **Post-Quantum Primitives:**
-- **ML-KEM-768** (FIPS 203) [^79]: Module-Lattice-based Key Encapsulation Mechanism for secure key exchange
+- **ML-KEM-768** (FIPS 203) [^79^]: Module-Lattice-based Key Encapsulation Mechanism for secure key exchange
 - **ML-DSA-65** (FIPS 204) [^83^]: Module-Lattice-based Digital Signature Algorithm for authentication
 - **Hybrid X25519+ML-KEM**: Defense-in-depth combining classical and PQC algorithms
 
@@ -101,20 +101,20 @@ Based on benchmarks and research [^69^][^86^]:
 
 ## References
 
-[^32]: Shamir, Adi. *How to Share a Secret*. Communications of the ACM, 1979. [https://dl.acm.org/doi/10.1145/359168.359176](https://dl.acm.org/doi/10.1145/359168.359176)
+[^32^]: Shamir, Adi. *How to Share a Secret*. Communications of the ACM, 1979. [https://dl.acm.org/doi/10.1145/359168.359176](https://dl.acm.org/doi/10.1145/359168.359176)
 
-[^48]: libp2p Documentation. *Kademlia DHT and GossipSub Specification*. [https://github.com/libp2p/specs](https://github.com/libp2p/specs)
+[^48^]: libp2p Documentation. *Kademlia DHT and GossipSub Specification*. [https://github.com/libp2p/specs](https://github.com/libp2p/specs)
 
-[^65]: Bloom, Burton H. *Space/Time Trade-offs in Hash Coding with Allowable Errors*. Communications of the ACM, 1970. [https://dl.acm.org/doi/10.1145/362686.362692](https://dl.acm.org/doi/10.1145/362686.362692)
+[^65^]: Bloom, Burton H. *Space/Time Trade-offs in Hash Coding with Allowable Errors*. Communications of the ACM, 1970. [https://dl.acm.org/doi/10.1145/362686.362692](https://dl.acm.org/doi/10.1145/362686.362692)
 
-[^66]: Dahlberg, Rasmus, et al. *Sparse Merkle Trees*. IACR Cryptology ePrint Archive, 2016. [https://eprint.iacr.org/2016/683](https://eprint.iacr.org/2016/683)
+[^66^]: Dahlberg, Rasmus, et al. *Sparse Merkle Trees*. IACR Cryptology ePrint Archive, 2016. [https://eprint.iacr.org/2016/683](https://eprint.iacr.org/2016/683)
 
-[^69]: Høiland-Jørgensen, Toke, et al. *The eXpress Data Path: Fast Programmable Packet Processing in the Operating System Kernel*. USENIX ATC, 2018. [https://www.usenix.org/conference/atc18/presentation/hoiland-jorgensen](https://www.usenix.org/conference/atc18/presentation/hoiland-jorgensen)
+[^69^]: Høiland-Jørgensen, Toke, et al. *The eXpress Data Path: Fast Programmable Packet Processing in the Operating System Kernel*. USENIX ATC, 2018. [https://www.usenix.org/conference/atc18/presentation/hoiland-jorgensen](https://www.usenix.org/conference/atc18/presentation/hoiland-jorgensen)
 
-[^79]: National Institute of Standards and Technology (NIST). *FIPS 203: Module-Lattice-Based Key-Encapsulation Mechanism Standard*. August 13, 2024. [https://doi.org/10.6028/NIST.FIPS.203](https://doi.org/10.6028/NIST.FIPS.203)
+[^79^]: National Institute of Standards and Technology (NIST). *FIPS 203: Module-Lattice-Based Key-Encapsulation Mechanism Standard*. August 13, 2024. [https://doi.org/10.6028/NIST.FIPS.203](https://doi.org/10.6028/NIST.FIPS.203)
 
 [^83^]: National Institute of Standards and Technology (NIST). *FIPS 204: Module-Lattice-Based Digital Signature Standard*. August 13, 2024. [https://doi.org/10.6028/NIST.FIPS.204](https://doi.org/10.6028/NIST.FIPS.204)
 
-[^85]: Heilman, Ethan, et al. *Eclipse Attacks on Bitcoin's Peer-to-Peer Network*. USENIX Security Symposium, 2015. [https://eprint.iacr.org/2015/263](https://eprint.iacr.org/2015/263)
+[^85^]: Heilman, Ethan, et al. *Eclipse Attacks on Bitcoin's Peer-to-Peer Network*. USENIX Security Symposium, 2015. [https://eprint.iacr.org/2015/263](https://eprint.iacr.org/2015/263)
 
-[^86]: Bertrone, Matteo, et al. *Accelerating Linux Security with eBPF iptables*. Netdev 0x13, 2019. [https://legacy.netdevconf.info/0x13/session.html?talk-ebpf-iptables](https://legacy.netdevconf.info/0x13/session.html?talk-ebpf-iptables)
+[^86^]: Bertrone, Matteo, et al. *Accelerating Linux Security with eBPF iptables*. Netdev 0x13, 2019. [https://legacy.netdevconf.info/0x13/session.html?talk-ebpf-iptables](https://legacy.netdevconf.info/0x13/session.html?talk-ebpf-iptables)
