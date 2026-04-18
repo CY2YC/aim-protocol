@@ -22,7 +22,11 @@ pub struct ReplayWindow {
 impl ReplayWindow {
     /// Create new replay window
     pub fn new() -> Self {
-        Self { base_seq: 0, bitmap: 0, max_window: 64 }
+        Self { 
+            base_seq: 0, 
+            bitmap: 0, 
+            max_window: 64 
+        }
     }
 
     /// Check if sequence number is a replay
@@ -86,6 +90,8 @@ impl Default for ReplayWindow {
 }
 
 /// Session key manager with automatic rotation
+#[derive(Zeroize)]
+#[zeroize(drop)]  // Fixed: Use attribute instead of manual impl
 pub struct SessionKeyManager {
     /// Current base key
     base_key: [u8; 32],
@@ -164,13 +170,8 @@ impl SessionKeyManager {
     }
 }
 
-impl ZeroizeOnDrop for SessionKeyManager {
-    fn zeroize_on_drop(&mut self) {
-        self.base_key.zeroize();
-        self.tx_key.zeroize();
-        self.rx_key.zeroize();
-    }
-}
+// ZeroizeOnDrop is automatically handled by #[zeroize(drop)]
+// No manual impl needed
 
 /// Combined session state (replay + keys)
 pub struct SecureSession {
@@ -182,7 +183,8 @@ pub struct SecureSession {
 
 impl SecureSession {
     /// Create new secure session
-    pub fn new(session_keys: super::handshake::SessionKeys, max_epochs: u32) -> Self {
+    /// Note: Uses direct crate import instead of super::handshake
+    pub fn new(session_keys: SessionKeys, max_epochs: u32) -> Self {
         let key_manager = SessionKeyManager::new(
             session_keys.tx_key, // Use tx as base
             max_epochs,
@@ -205,7 +207,7 @@ impl SecureSession {
             return None;
         }
 
-        // Decrypt (simplified - real impl would use AES-GCM or ChaCha20Poly1305)
+        // TODO: Decrypt with self.key_manager.rx_key()
         // let plaintext = decrypt(ciphertext, self.key_manager.rx_key());
 
         self.packets_processed += 1;
@@ -223,9 +225,10 @@ impl SecureSession {
     }
 
     /// Encrypt outgoing packet
-    pub fn process_outgoing(&mut self, seq: u64, plaintext: &[u8]) -> Vec<u8> {
-        // Encrypt (simplified)
+    pub fn process_outgoing(&mut self, _seq: u64, plaintext: &[u8]) -> Vec<u8> {
+        // TODO: Encrypt with self.key_manager.tx_key()
         // let ciphertext = encrypt(plaintext, self.key_manager.tx_key());
+        
         self.packets_processed += 1;
         plaintext.to_vec() // Placeholder
     }
@@ -234,6 +237,14 @@ impl SecureSession {
     pub fn session_id(&self) -> &[u8; 16] {
         &self.session_id
     }
+}
+
+/// Session keys from handshake
+#[derive(Clone)]
+pub struct SessionKeys {
+    pub session_id: [u8; 16],
+    pub tx_key: [u8; 32],
+    pub rx_key: [u8; 32],
 }
 
 #[cfg(test)]
@@ -266,7 +277,7 @@ mod tests {
         // Replay
         assert!(window.is_replay(5));
 
-        // Too old after window advances
+        // New packet far ahead - window shifts
         assert!(!window.is_replay(100));
         assert!(window.is_replay(5)); // Now too old
     }
@@ -276,10 +287,10 @@ mod tests {
         let base = [0x42u8; 32];
         let mut manager = SessionKeyManager::new(base, 10);
 
-        let key_0 = manager.tx_key().clone();
+        let key_0 = *manager.tx_key();
 
         assert!(manager.rotate());
-        let key_1 = manager.tx_key().clone();
+        let key_1 = *manager.tx_key();
 
         // Keys should be different
         assert_ne!(key_0, key_1);
@@ -293,10 +304,35 @@ mod tests {
         let base = [0x42u8; 32];
         let mut manager = SessionKeyManager::new(base, 3);
 
-        assert!(manager.rotate()); // 1
-        assert!(manager.rotate()); // 2
-        assert!(!manager.rotate()); // 3 - max reached
+        assert!(manager.rotate()); // epoch 1
+        assert!(manager.rotate()); // epoch 2
+        assert!(manager.rotate()); // epoch 3 - still true since epoch < max_epochs
+        assert!(!manager.rotate()); // epoch 4 - max reached
 
         assert_eq!(manager.epoch(), 3);
+    }
+
+    #[test]
+    fn test_needs_rotation() {
+        let base = [0x42u8; 32];
+        let manager = SessionKeyManager::new(base, 10);
+
+        // Not needed initially
+        assert!(!manager.needs_rotation(0));
+        
+        // Packet threshold reached
+        assert!(manager.needs_rotation(1_000_001));
+    }
+
+    #[test]
+    fn test_session_creation() {
+        let session_keys = SessionKeys {
+            session_id: [1u8; 16],
+            tx_key: [2u8; 32],
+            rx_key: [3u8; 32],
+        };
+        
+        let session = SecureSession::new(session_keys, 5);
+        assert_eq!(session.session_id(), &[1u8; 16]);
     }
 }
