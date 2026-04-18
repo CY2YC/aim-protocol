@@ -174,9 +174,8 @@ All cryptographic operations must be constant-time to prevent timing attacks. Th
 
 ## References
 
-- FIPS 203: Module-Lattice-Based Key-Encapsulation Mechanism Standard [^79^]
-- FIPS 204: Module-Lattice-Based Digital Signature Standard [^83^]
-- ml-kem crate documentation [^19^]
-- ml-dsa crate documentation [^19^]
-- BLAKE3 specification
-- HKDF RFC 5869
+[^19^]: RustCrypto. *ml-kem and ml-dsa crates*. [https://github.com/RustCrypto/ML-KEM](https://github.com/RustCrypto/ML-KEM)
+
+[^79^]: National Institute of Standards and Technology (NIST). *FIPS 203: Module-Lattice-Based Key-Encapsulation Mechanism Standard*. August 13, 2024. [https://doi.org/10.6028/NIST.FIPS.203](https://doi.org/10.6028/NIST.FIPS.203)
+
+[^83^]: National Institute of Standards and Technology (NIST). *FIPS 204: Module-Lattice-Based Digital Signature Standard*. August 13, 2024. [https://doi.org/10.6028/NIST.FIPS.204](https://doi.org/10.6028/NIST.FIPS.204)
