@@ -1,1 +1,25 @@
+[package]
+name = "aim-xdp"
+version = "0.1.0"
+edition = "2021"
 
+[dependencies]
+aya-ebpf = "0.1"
+aya-log-ebpf = "0.1"
+memoffset = "0.9"
+
+[[bin]]
+name = "aim-xdp"
+path = "src/main.rs"
+
+[profile.dev]
+opt-level = 3
+overflow-checks = false
+lto = true
+panic = "abort"
+
+[profile.release]
+opt-level = 3
+overflow-checks = false
+lto = true
+panic = "abort"
