@@ -9,7 +9,7 @@ The AIM (Authenticated Identity Mesh) Protocol is a production-grade, zero-trust
 ### 1. Cryptographic Layer (`aim-core`)
 
 **Post-Quantum Primitives:**
-- **ML-KEM-768** (FIPS 203) [^79^]: Module-Lattice-based Key Encapsulation Mechanism for secure key exchange
+- **ML-KEM-768** (FIPS 203) [^79]: Module-Lattice-based Key Encapsulation Mechanism for secure key exchange
 - **ML-DSA-65** (FIPS 204) [^83^]: Module-Lattice-based Digital Signature Algorithm for authentication
 - **Hybrid X25519+ML-KEM**: Defense-in-depth combining classical and PQC algorithms
 
@@ -113,7 +113,7 @@ Based on benchmarks and research [^69^][^86^]:
 
 [^79]: National Institute of Standards and Technology (NIST). *FIPS 203: Module-Lattice-Based Key-Encapsulation Mechanism Standard*. August 13, 2024. [https://doi.org/10.6028/NIST.FIPS.203](https://doi.org/10.6028/NIST.FIPS.203)
 
-[^83]: National Institute of Standards and Technology (NIST). *FIPS 204: Module-Lattice-Based Digital Signature Standard*. August 13, 2024. [https://doi.org/10.6028/NIST.FIPS.204](https://doi.org/10.6028/NIST.FIPS.204)
+[^83^]: National Institute of Standards and Technology (NIST). *FIPS 204: Module-Lattice-Based Digital Signature Standard*. August 13, 2024. [https://doi.org/10.6028/NIST.FIPS.204](https://doi.org/10.6028/NIST.FIPS.204)
 
 [^85]: Heilman, Ethan, et al. *Eclipse Attacks on Bitcoin's Peer-to-Peer Network*. USENIX Security Symposium, 2015. [https://eprint.iacr.org/2015/263](https://eprint.iacr.org/2015/263)
 
