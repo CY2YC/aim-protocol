@@ -1,6 +1,7 @@
 # AIM Protocol – Post-Quantum Secure Mesh Network
 
 [![CI](https://github.com/CY2YC/aim-protocol/workflows/CI/badge.svg)](https://github.com/CY2YC/aim-protocol/actions)
+
 [![License](https://img.shields.io/badge/license-MIT%2FApache--2.0-blue.svg)](LICENSE)
 
 A production-grade, zero-trust, physically anchored mesh network with NIST-approved PQC, TEE attestation, BFT governance, and DePIN incentives.
