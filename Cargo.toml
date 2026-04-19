@@ -1,0 +1,79 @@
+[workspace]
+members = [
+    "packages/cli",
+    "packages/core",
+    "packages/mesh",
+    "packages/xdp-firewall",
+    "packages/xdp-firewall-ebpf",
+]
+resolver = "2"
+
+[profile.release]
+opt-level = 3
+lto = "fat"
+codegen-units = 1
+panic = "abort"
+strip = true
+
+[profile.bench]
+inherits = "release"
+
+[workspace.dependencies]
+# Cryptography - Using production-ready crates
+ml-kem = "0.3.0"           # Updated from 0.2.0 - API changed
+ml-dsa = "0.2.0"           # Updated from rc version to stable
+sha2 = "0.10"
+hkdf = "0.12"
+blake3 = "1.5"
+rand = { version = "0.8", features = ["std", "std_rng"] }
+rand_core = "0.6"
+rand_chacha = "0.3"        # ADDED - Needed for CSPRNG
+x25519-dalek = { version = "2.0", features = ["getrandom", "zeroize", "static_secrets"] }
+
+# Serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_bytes = "0.11"       # ADDED - For byte array serialization
+bincode = "1.3"
+postcard = { version = "1.0", features = ["alloc", "heapless"] }
+
+# Async runtime
+tokio = { version = "1.37", features = ["full"] }
+futures = "0.3"
+async-trait = "0.1"        # ADDED - For async trait support
+
+# Error handling
+thiserror = "1.0"
+anyhow = "1.0"
+
+# Utilities
+hex = "0.4"
+zeroize = { version = "1.7", features = ["derive", "zeroize_derive"] }
+constant_time_eq = "0.3"
+# Data structures for revocation
+monotree = "0.3"           # For Sparse Merkle Tree
+bloomfilter = "1.0"        # For Bloom filter
+# Secret sharing
+shamir-vault = "2.0"       # Updated from 1.3.0
+
+# Logging
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+tracing-attributes = "0.1" # ADDED - For #[tracing::instrument]
+
+# Network & P2P
+libp2p = { version = "0.53", features = ["full"] }  # ADDED - For mesh network
+multiaddr = "0.18"         # ADDED - For network addresses
+
+# CLI
+clap = { version = "4.4", features = ["derive", "color"] }
+colored = "2.0"            # ADDED - For colored terminal output
+
+# System (Linux-specific for XDP)
+aya = "0.13"               # For XDP firewall
+aya-log = "0.2"            # For eBPF logging
+nix = "0.27"               # For system calls
+
+# Testing
+criterion = { version = "0.5", features = ["html_reports"] }
+proptest = "1.4"
+tempfile = "3.8"           # ADDED - For test temporary files
