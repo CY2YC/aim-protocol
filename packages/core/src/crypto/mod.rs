@@ -73,8 +73,11 @@ pub mod dilithium {
 
     impl Zeroize for SecretKey {
         fn zeroize(&mut self) {
-            // Best effort: drop and reallocate
-            self.0 = Box::new(SigningKey::try_from(&[0u8; SECRET_KEY_LENGTH][..]).unwrap());
+            // Best effort: overwrite with zeros
+            let zeroed = [0u8; SECRET_KEY_LENGTH];
+            if let Ok(sk) = SigningKey::<MlDsa65>::try_from(&zeroed[..]) {
+                self.0 = Box::new(sk);
+            }
         }
     }
 
@@ -179,7 +182,7 @@ pub mod kyber {
 
         /// Serialize to bytes
         pub fn to_bytes(&self) -> [u8; SECRET_KEY_LENGTH] {
-            self.0.to_bytes()
+            self.0.as_bytes()
         }
 
         /// Deserialize from bytes
@@ -192,8 +195,10 @@ pub mod kyber {
 
     impl Zeroize for SecretKey {
         fn zeroize(&mut self) {
-            // Best effort zeroization
-            self.0 = Box::new(DecapsulationKey::try_from(&[0u8; SECRET_KEY_LENGTH][..]).unwrap());
+            let zeroed = [0u8; SECRET_KEY_LENGTH];
+            if let Ok(dk) = DecapsulationKey::<MlKem768>::try_from(&zeroed[..]) {
+                self.0 = Box::new(dk);
+            }
         }
     }
 
@@ -410,10 +415,10 @@ mod tests {
     fn test_hybrid_kem_roundtrip() {
         let mut rng = OsRng;
         let (pk, sk) = hybrid::HybridKem::generate(&mut rng);
-        
+
         let (ct, ss_enc) = hybrid::HybridKem::encapsulate(&pk, &mut rng);
         let ss_dec = hybrid::HybridKem::decapsulate(&sk, &ct);
-        
+
         assert_eq!(ss_enc, ss_dec);
     }
 
@@ -432,11 +437,11 @@ mod tests {
     fn test_kyber_serialization() {
         let mut rng = OsRng;
         let (pk, sk) = kyber::SecretKey::generate(&mut rng);
-        
+
         let pk_bytes = pk.to_bytes();
         let pk2 = kyber::PublicKey::from_bytes(pk_bytes).unwrap();
         assert_eq!(pk, pk2);
-        
+
         let sk_bytes = sk.to_bytes();
         let sk2 = kyber::SecretKey::from_bytes(&sk_bytes).unwrap();
         // Test functionality
