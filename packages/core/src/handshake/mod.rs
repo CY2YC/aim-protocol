@@ -84,7 +84,10 @@ impl Handshake {
         let mut local_nonce = [0u8; 32];
         rng.fill_bytes(&mut local_nonce);
 
-        let msg = HandshakeMessage::Hello { ephemeral_kyber_pk: pk.clone(), nonce: local_nonce };
+        let msg = HandshakeMessage::Hello {
+            ephemeral_kyber_pk: pk.clone(),
+            nonce: local_nonce,
+        };
 
         let hs = Self {
             state: HandshakeState::SentHello,
@@ -109,7 +112,10 @@ impl Handshake {
         rng: &mut R,
     ) -> Result<HandshakeMessage, HandshakeError> {
         match msg {
-            HandshakeMessage::Hello { ephemeral_kyber_pk, nonce } => {
+            HandshakeMessage::Hello {
+                ephemeral_kyber_pk,
+                nonce,
+            } => {
                 // Generate ephemeral keypair
                 let (our_pk, our_sk) = kyber::SecretKey::generate(rng);
 
@@ -118,12 +124,15 @@ impl Handshake {
 
                 // Sign the transcript
                 let mut transcript = Vec::new();
-                transcript.extend_from_slice(&ephemeral_kyber_pk.to_bytes());
-                transcript.extend_from_slice(&our_pk.to_bytes());
+                transcript.extend_from_slice(ephemeral_kyber_pk.to_bytes());
+                transcript.extend_from_slice(our_pk.to_bytes());
                 transcript.extend_from_slice(&ct.to_bytes());
                 transcript.extend_from_slice(nonce);
 
-                let sig = self.self_secret.dilithium_sk.sign(&transcript, b"aim-handshake-v1");
+                let sig = self
+                    .self_secret
+                    .dilithium_sk
+                    .sign(&transcript, b"aim-handshake-v1");
 
                 self.state = HandshakeState::SentAuth;
                 self.peer_id = Some(peer_id);
@@ -146,12 +155,19 @@ impl Handshake {
     pub fn process_response<R: CryptoRngCore>(
         &mut self,
         msg: &HandshakeMessage,
-        rng: &mut R,
+        _rng: &mut R,
     ) -> Result<HandshakeMessage, HandshakeError> {
         match msg {
-            HandshakeMessage::HelloResponse { ciphertext, signature, responder_id } => {
+            HandshakeMessage::HelloResponse {
+                ciphertext,
+                signature: _signature,
+                responder_id,
+            } => {
                 // Decapsulate shared secret
-                let sk = self.ephemeral_kyber_sk.as_ref().ok_or(HandshakeError::InvalidState)?;
+                let sk = self
+                    .ephemeral_kyber_sk
+                    .as_ref()
+                    .ok_or(HandshakeError::InvalidState)?;
                 let shared = sk.decapsulate(ciphertext);
 
                 // Verify signature (need peer's public key from DID resolution)
@@ -164,7 +180,10 @@ impl Handshake {
                 transcript.extend_from_slice(&self.local_nonce);
                 transcript.extend_from_slice(responder_id.as_bytes());
 
-                let sig = self.self_secret.dilithium_sk.sign(&transcript, b"aim-handshake-v1");
+                let sig = self
+                    .self_secret
+                    .dilithium_sk
+                    .sign(&transcript, b"aim-handshake-v1");
 
                 self.state = HandshakeState::Complete;
 
@@ -180,7 +199,10 @@ impl Handshake {
     /// Complete handshake as server
     pub fn complete(&mut self, msg: &HandshakeMessage) -> Result<SessionKeys, HandshakeError> {
         match msg {
-            HandshakeMessage::AuthConfirm { signature, initiator_id } => {
+            HandshakeMessage::AuthConfirm {
+                signature: _signature,
+                initiator_id: _initiator_id,
+            } => {
                 if self.state != HandshakeState::SentAuth {
                     return Err(HandshakeError::InvalidState);
                 }
@@ -191,7 +213,9 @@ impl Handshake {
                 self.state = HandshakeState::Complete;
 
                 // Derive session keys
-                let ss = self.shared_secret.ok_or(HandshakeError::MissingSharedSecret)?;
+                let ss = self
+                    .shared_secret
+                    .ok_or(HandshakeError::MissingSharedSecret)?;
                 let salt = self.local_nonce;
 
                 let mut keys = [0u8; 80]; // tx + rx + session_id
@@ -205,7 +229,12 @@ impl Handshake {
                 rx_key.copy_from_slice(&keys[32..64]);
                 session_id.copy_from_slice(&keys[64..80]);
 
-                Ok(SessionKeys { tx_key, rx_key, session_id, epoch: 0 })
+                Ok(SessionKeys {
+                    tx_key,
+                    rx_key,
+                    session_id,
+                    epoch: 0,
+                })
             }
             _ => Err(HandshakeError::UnexpectedMessage),
         }
@@ -238,8 +267,8 @@ pub enum HandshakeError {
 
 /// Simplified one-shot handshake for basic usage
 pub fn perform_handshake<R: CryptoRngCore>(
-    self_id: &DigitalID,
-    self_secret: &DigitalIDSecret,
+    _self_id: &DigitalID,
+    _self_secret: &DigitalIDSecret,
     peer_id: &DigitalID,
     rng: &mut R,
 ) -> SessionKeys {
@@ -263,7 +292,12 @@ pub fn perform_handshake<R: CryptoRngCore>(
     rx_key.copy_from_slice(&keys[32..64]);
     session_id.copy_from_slice(&keys[64..80]);
 
-    SessionKeys { tx_key, rx_key, session_id, epoch: 0 }
+    SessionKeys {
+        tx_key,
+        rx_key,
+        session_id,
+        epoch: 0,
+    }
 }
 
 #[cfg(test)]
@@ -306,5 +340,22 @@ mod tests {
         // A derives keys (simplified)
         assert!(hs_a.is_complete());
         assert!(hs_b.is_complete());
+
+        // Verify keys are valid
+        assert_ne!(keys_b.tx_key, [0u8; 32]);
+        assert_ne!(keys_b.rx_key, [0u8; 32]);
+    }
+
+    #[test]
+    fn test_perform_handshake() {
+        let mut rng = OsRng;
+        let (id_a, secret_a) = DigitalID::generate(&mut rng);
+        let (id_b, _secret_b) = DigitalID::generate(&mut rng);
+
+        let keys = perform_handshake(&id_a, &secret_a, &id_b, &mut rng);
+
+        assert_ne!(keys.tx_key, [0u8; 32]);
+        assert_ne!(keys.rx_key, [0u8; 32]);
+        assert_ne!(keys.session_id, [0u8; 16]);
     }
 }
