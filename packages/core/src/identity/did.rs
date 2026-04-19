@@ -98,7 +98,7 @@ impl DigitalID {
         hasher.update(&epoch.to_le_bytes());
         let hash = hasher.finalize();
 
-        // Use first 16 bytes as base58-like encoding (simplified)
+        // Use first 16 bytes as hex encoding
         format!("did:aim:{}", hex::encode(&hash[..16]))
     }
 
@@ -279,22 +279,5 @@ mod tests {
         // Try with only 2 shares (below threshold)
         let recovered = DigitalID::recover_from_shares(&shares[..2]);
         assert!(recovered.is_none());
-    }
-
-    #[test]
-    fn test_recovery_seed_is_zeroized() {
-        let mut rng = OsRng;
-        let (_id, secret) = DigitalID::generate(&mut rng);
-
-        // Make a copy of the seed before drop
-        let original_seed = secret.recovery_seed;
-
-        // Drop secret (should zeroize)
-        drop(secret);
-
-        // We can\'t directly test zeroization after drop,
-        // but this ensures the field is marked with #[zeroize(skip)]
-        // which means it WON\'T be zeroized (as intended for recovery)
-        assert_eq!(original_seed.len(), 32);
     }
 }
