@@ -11,7 +11,7 @@ pub mod session;
 
 // Re-exports for ergonomic API
 pub use crypto::{dilithium, hybrid, kdf, kyber};
-pub use handshake::{Handshake, HandshakeState, SessionKeys, perform_handshake};
+pub use handshake::{Handshake, HandshakeState, perform_handshake};
 pub use identity::{DigitalID, DigitalIDSecret, RecoveryShare};
-pub use revocation::{RevocationChecker, RevocationEntry, RevocationStatus};
-pub use session::replay::{ReplayWindow, SecureSession, SessionKeyManager};
+pub use revocation::{RevocationChecker, RevocationEntry};
+pub use session::{ReplayWindow, SecureSession, SessionKeyManager, SessionKeys};
