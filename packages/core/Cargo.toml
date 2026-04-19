@@ -14,7 +14,7 @@ no_std = []
 
 [dependencies]
 # NIST PQC - FIPS 203/204 compliant [^19^][^12^]
-ml-kem = { version = "0.3.0-rc.2", default-features = false }
+ml-kem = { version = "0.3.0-rc.0", default-features = false }
 ml-dsa = { version = "0.1.0-rc.8", default-features = false }
 
 # Cryptographic utilities
