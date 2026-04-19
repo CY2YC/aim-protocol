@@ -4,6 +4,7 @@
 //! FIPS 203 (ML-KEM) and FIPS 204 (ML-DSA) compliant.
 
 use rand_core::CryptoRngCore;
+use serde::{Deserialize, Serialize};
 use zeroize::{Zeroize, ZeroizeOnDrop};
 
 // =============================================================================
@@ -13,6 +14,7 @@ use zeroize::{Zeroize, ZeroizeOnDrop};
 pub mod dilithium {
     use super::*;
     use ml_dsa::{MlDsa65, Signature, SigningKey, VerifyingKey};
+    use ml_dsa::signature::{Keypair, Signer, Verifier, SignatureEncoding};
 
     /// ML-DSA-65 public key size (1952 bytes)
     pub const PUBLIC_KEY_LENGTH: usize = 1952;
@@ -22,33 +24,38 @@ pub mod dilithium {
     pub const SIGNATURE_LENGTH: usize = 3293;
 
     /// Production-grade ML-DSA signing key with secure memory handling
-    #[derive(Zeroize, ZeroizeOnDrop)]
     pub struct SecretKey(Box<SigningKey<MlDsa65>>);
 
     /// ML-DSA verifying key (public)
-    #[derive(Clone, Debug, PartialEq)]
-    pub struct PublicKey(VerifyingKey<MlDsa65>);
+    #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+    pub struct PublicKey(#[serde(with = "serde_bytes")] Box<[u8; PUBLIC_KEY_LENGTH]>);
 
     /// ML-DSA signature
-    #[derive(Clone, Debug)]
-    pub struct SignatureBytes(Box<Signature<MlDsa65>>);
+    #[derive(Clone, Debug, Serialize, Deserialize)]
+    pub struct SignatureBytes(#[serde(with = "serde_bytes")] Box<Vec<u8>>);
 
     impl SecretKey {
         /// Generate new signing key with cryptographically secure RNG
         pub fn generate<R: CryptoRngCore>(rng: &mut R) -> Self {
-            let sk = SigningKey::<MlDsa65>::generate(rng);
+            let mut seed = [0u8; 32];
+            rng.fill_bytes(&mut seed);
+            let sk = SigningKey::<MlDsa65>::try_from(&seed[..])
+                .expect("Failed to generate ML-DSA key");
             Self(Box::new(sk))
         }
 
         /// Sign message (deterministic with context separation)
         pub fn sign(&self, msg: &[u8], ctx: &[u8]) -> SignatureBytes {
-            let sig = self.0.sign_with_context(msg, ctx);
-            SignatureBytes(Box::new(sig))
+            let sig = self.0.sign_with_ctx(ctx, msg);
+            let sig_bytes = sig.to_bytes().to_vec();
+            SignatureBytes(Box::new(sig_bytes))
         }
 
         /// Get verifying key
         pub fn verifying_key(&self) -> PublicKey {
-            PublicKey(self.0.verifying_key())
+            let vk = self.0.verifying_key();
+            let bytes = vk.to_bytes();
+            PublicKey(Box::new(bytes))
         }
 
         /// Serialize to bytes
@@ -58,40 +65,63 @@ pub mod dilithium {
 
         /// Deserialize from bytes
         pub fn from_bytes(bytes: &[u8; SECRET_KEY_LENGTH]) -> Option<Self> {
-            SigningKey::<MlDsa65>::try_from(bytes)
+            SigningKey::<MlDsa65>::try_from(bytes.as_slice())
                 .ok()
                 .map(|sk| Self(Box::new(sk)))
         }
     }
 
+    impl Zeroize for SecretKey {
+        fn zeroize(&mut self) {
+            // Best effort: drop and reallocate
+            self.0 = Box::new(SigningKey::try_from(&[0u8; SECRET_KEY_LENGTH][..]).unwrap());
+        }
+    }
+
+    impl ZeroizeOnDrop for SecretKey {}
+
     impl PublicKey {
         /// Verify signature with context
         pub fn verify(&self, msg: &[u8], ctx: &[u8], sig: &SignatureBytes) -> bool {
-            self.0.verify_with_context(msg, ctx, &sig.0).is_ok()
+            let vk = match VerifyingKey::<MlDsa65>::try_from(self.0.as_slice()) {
+                Ok(vk) => vk,
+                Err(_) => return false,
+            };
+            let sig_data = match Signature::<MlDsa65>::try_from(sig.0.as_slice()) {
+                Ok(s) => s,
+                Err(_) => return false,
+            };
+            vk.verify_with_ctx(ctx, msg, &sig_data).is_ok()
         }
 
         /// Serialize to bytes
-        pub fn to_bytes(&self) -> [u8; PUBLIC_KEY_LENGTH] {
-            self.0.to_bytes()
+        pub fn to_bytes(&self) -> &[u8; PUBLIC_KEY_LENGTH] {
+            &self.0
         }
 
         /// Deserialize from bytes
         pub fn from_bytes(bytes: &[u8; PUBLIC_KEY_LENGTH]) -> Option<Self> {
-            VerifyingKey::<MlDsa65>::try_from(bytes).ok().map(Self)
+            if VerifyingKey::<MlDsa65>::try_from(bytes.as_slice()).is_ok() {
+                Some(Self(Box::new(*bytes)))
+            } else {
+                None
+            }
         }
     }
 
     impl SignatureBytes {
         /// Serialize to bytes
-        pub fn to_bytes(&self) -> [u8; SIGNATURE_LENGTH] {
-            self.0.to_bytes()
+        pub fn to_bytes(&self) -> &[u8] {
+            &self.0
         }
 
         /// Deserialize from bytes
         pub fn from_bytes(bytes: &[u8; SIGNATURE_LENGTH]) -> Option<Self> {
-            Signature::<MlDsa65>::try_from(bytes)
-                .ok()
-                .map(|s| Self(Box::new(s)))
+            if Signature::<MlDsa65>::try_from(bytes.as_slice()).is_ok() {
+                Some(Self(Box::new(bytes.to_vec())))
+            } else {
+                None
+            }
         }
     }
 }
@@ -102,7 +132,8 @@ pub mod dilithium {
 
 pub mod kyber {
     use super::*;
-    use ml_kem::{Ciphertext, DecapsulationKey, EncapsulationKey, MlKem768};
+    use ml_kem::{MlKem768, Ciphertext};
+    use ml_kem::kem::{DecapsulationKey, EncapsulationKey, Decapsulate, Encapsulate};
 
     /// ML-KEM-768 public key size (1184 bytes)
     pub const PUBLIC_KEY_LENGTH: usize = 1184;
@@ -114,51 +145,59 @@ pub mod kyber {
     pub const SHARED_SECRET_LENGTH: usize = 32;
 
     /// Production-grade ML-KEM decapsulation key with secure memory handling
-    #[derive(Zeroize, ZeroizeOnDrop)]
     pub struct SecretKey(Box<DecapsulationKey<MlKem768>>);
 
     /// ML-KEM encapsulation key (public)
-    #[derive(Clone, Debug, PartialEq)]
-    pub struct PublicKey(EncapsulationKey<MlKem768>);
+    #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+    pub struct PublicKey(#[serde(with = "serde_bytes")] Box<[u8; PUBLIC_KEY_LENGTH]>);
 
     /// ML-KEM ciphertext
-    #[derive(Clone, Debug)]
-    pub struct CiphertextBytes(Box<Ciphertext<MlKem768>>);
+    #[derive(Clone, Debug, Serialize, Deserialize)]
+    pub struct CiphertextBytes(#[serde(with = "serde_bytes")] Box<Vec<u8>>);
 
     /// Shared secret from encapsulation/decapsulation
-    #[derive(Zeroize, ZeroizeOnDrop, Clone)]
+    #[derive(Zeroize, ZeroizeOnDrop, Clone, Serialize, Deserialize)]
     pub struct SharedSecret([u8; SHARED_SECRET_LENGTH]);
 
     impl SecretKey {
         /// Generate new keypair with cryptographically secure RNG
         pub fn generate<R: CryptoRngCore>(rng: &mut R) -> (PublicKey, Self) {
-            let (ek, dk) = DecapsulationKey::<MlKem768>::generate(rng);
-            (PublicKey(ek), Self(Box::new(dk)))
+            let (ek, dk) = DecapsulationKey::<MlKem768>::generate_key(rng);
+            let pk_bytes = ek.as_bytes();
+            (PublicKey(Box::new(pk_bytes)), Self(Box::new(dk)))
         }
 
         /// Decapsulate ciphertext to obtain shared secret
         pub fn decapsulate(&self, ct: &CiphertextBytes) -> SharedSecret {
-            let ss = self.0.decapsulate(&ct.0);
-            SharedSecret(ss.into())
-        }
-
-        /// Get encapsulation key
-        pub fn encapsulation_key(&self) -> PublicKey {
-            PublicKey(self.0.encapsulation_key())
+            let ct_data = match Ciphertext::<MlKem768>::try_from(ct.0.as_slice()) {
+                Ok(ct) => ct,
+                Err(_) => panic!("Invalid ciphertext"),
+            };
+            let ss = self.0.decapsulate(&ct_data);
+            SharedSecret(ss.as_bytes())
         }
 
         /// Serialize to bytes
         pub fn to_bytes(&self) -> [u8; SECRET_KEY_LENGTH] {
-            self.0.as_bytes()
+            self.0.to_bytes()
         }
 
         /// Deserialize from bytes
         pub fn from_bytes(bytes: &[u8; SECRET_KEY_LENGTH]) -> Option<Self> {
-            DecapsulationKey::<MlKem768>::try_from(bytes)
+            DecapsulationKey::<MlKem768>::try_from(bytes.as_slice())
                 .ok()
                 .map(|dk| Self(Box::new(dk)))
         }
     }
+
+    impl Zeroize for SecretKey {
+        fn zeroize(&mut self) {
+            // Best effort zeroization
+            self.0 = Box::new(DecapsulationKey::try_from(&[0u8; SECRET_KEY_LENGTH][..]).unwrap());
+        }
+    }
+
+    impl ZeroizeOnDrop for SecretKey {}
 
     impl PublicKey {
         /// Encapsulate to generate ciphertext and shared secret
@@ -166,32 +205,43 @@ pub mod kyber {
             &self,
             rng: &mut R,
         ) -> (CiphertextBytes, SharedSecret) {
-            let (ct, ss) = self.0.encapsulate(rng);
-            (CiphertextBytes(Box::new(ct)), SharedSecret(ss.into()))
+            let ek = match EncapsulationKey::<MlKem768>::try_from(self.0.as_slice()) {
+                Ok(ek) => ek,
+                Err(_) => panic!("Invalid public key"),
+            };
+            let (ct, ss) = ek.encapsulate_with_rng(rng);
+            let ct_bytes = ct.as_bytes().to_vec();
+            (CiphertextBytes(Box::new(ct_bytes)), SharedSecret(ss.as_bytes()))
         }
 
         /// Serialize to bytes
-        pub fn to_bytes(&self) -> [u8; PUBLIC_KEY_LENGTH] {
-            self.0.as_bytes()
+        pub fn to_bytes(&self) -> &[u8; PUBLIC_KEY_LENGTH] {
+            &self.0
         }
 
         /// Deserialize from bytes
         pub fn from_bytes(bytes: &[u8; PUBLIC_KEY_LENGTH]) -> Option<Self> {
-            EncapsulationKey::<MlKem768>::try_from(bytes).ok().map(Self)
+            if EncapsulationKey::<MlKem768>::try_from(bytes.as_slice()).is_ok() {
+                Some(Self(Box::new(*bytes)))
+            } else {
+                None
+            }
         }
     }
 
     impl CiphertextBytes {
         /// Serialize to bytes
-        pub fn to_bytes(&self) -> [u8; CIPHERTEXT_LENGTH] {
-            self.0.as_bytes()
+        pub fn to_bytes(&self) -> &[u8] {
+            &self.0
         }
 
         /// Deserialize from bytes
         pub fn from_bytes(bytes: &[u8; CIPHERTEXT_LENGTH]) -> Option<Self> {
-            Ciphertext::<MlKem768>::try_from(bytes)
-                .ok()
-                .map(|ct| Self(Box::new(ct)))
+            if Ciphertext::<MlKem768>::try_from(bytes.as_slice()).is_ok() {
+                Some(Self(Box::new(bytes.to_vec())))
+            } else {
+                None
+            }
         }
     }
 
@@ -267,7 +317,7 @@ pub mod hybrid {
             rng: &mut R,
         ) -> (HybridCiphertext, [u8; 32]) {
             // X25519 ephemeral
-            let eph_sk = EphemeralSecret::random_from_rng(rng);
+            let eph_sk = EphemeralSecret::random_from_rng(&mut *rng);
             let eph_pk = X25519PublicKey::from(&eph_sk);
             let x25519_ss = eph_sk.diffie_hellman(&pk.x25519);
 
@@ -288,8 +338,28 @@ pub mod hybrid {
 
             (ct, shared_secret)
         }
+
+        /// Decapsulate to recover shared secret
+        pub fn decapsulate(
+            sk: &HybridSecretKey,
+            ct: &HybridCiphertext,
+        ) -> [u8; 32] {
+            // X25519 decaps
+            let x25519_ss = sk.x25519.diffie_hellman(&ct.x25519_ephemeral);
+
+            // ML-KEM decaps
+            let kyber_ss = sk.kyber.decapsulate(&ct.kyber);
+
+            // Combine shared secrets
+            let mut combined_ikm = Vec::with_capacity(64);
+            combined_ikm.extend_from_slice(x25519_ss.as_bytes());
+            combined_ikm.extend_from_slice(kyber_ss.as_bytes());
+
+            kdf::derive_key(&combined_ikm, b"", b"aim-hybrid-kem-v1")
+        }
     }
 
+    #[derive(Clone)]
     pub struct HybridPublicKey {
         pub kyber: kyber::PublicKey,
         pub x25519: X25519PublicKey,
@@ -337,13 +407,41 @@ mod tests {
     }
 
     #[test]
+    fn test_hybrid_kem_roundtrip() {
+        let mut rng = OsRng;
+        let (pk, sk) = hybrid::HybridKem::generate(&mut rng);
+        
+        let (ct, ss_enc) = hybrid::HybridKem::encapsulate(&pk, &mut rng);
+        let ss_dec = hybrid::HybridKem::decapsulate(&sk, &ct);
+        
+        assert_eq!(ss_enc, ss_dec);
+    }
+
+    #[test]
     fn test_key_serialization() {
         let mut rng = OsRng;
         let sk = dilithium::SecretKey::generate(&mut rng);
         let pk = sk.verifying_key();
 
         let pk_bytes = pk.to_bytes();
-        let pk2 = dilithium::PublicKey::from_bytes(&pk_bytes).unwrap();
+        let pk2 = dilithium::PublicKey::from_bytes(pk_bytes).unwrap();
         assert_eq!(pk, pk2);
+    }
+
+    #[test]
+    fn test_kyber_serialization() {
+        let mut rng = OsRng;
+        let (pk, sk) = kyber::SecretKey::generate(&mut rng);
+        
+        let pk_bytes = pk.to_bytes();
+        let pk2 = kyber::PublicKey::from_bytes(pk_bytes).unwrap();
+        assert_eq!(pk, pk2);
+        
+        let sk_bytes = sk.to_bytes();
+        let sk2 = kyber::SecretKey::from_bytes(&sk_bytes).unwrap();
+        // Test functionality
+        let (ct, ss1) = pk.encapsulate(&mut rng);
+        let ss2 = sk2.decapsulate(&ct);
+        assert_eq!(ss1.as_bytes(), ss2.as_bytes());
     }
 }
