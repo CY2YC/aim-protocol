@@ -8,8 +8,8 @@ description = "XDP kernel-mode packet filter for AIM Protocol"
 
 [dependencies]
 # eBPF user-space
-aya = { version = "0.13", features = ["async_tokio"] }
-aya-log = "0.2"
+aya = { workspace = true, features = ["async_tokio"] }
+aya-log = { workspace = true }
 tokio = { workspace = true }
 anyhow = { workspace = true }
 clap = { version = "4.5", features = ["derive"] }
