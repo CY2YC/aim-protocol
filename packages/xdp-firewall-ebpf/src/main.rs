@@ -1,10 +1,11 @@
 #![no_std]
 #![no_main]
+#![feature(asm_experimental_arch)]
 
 //! AIM Protocol XDP Firewall - Kernel-space eBPF Program
 //!
 //! Performs high-performance packet filtering at the kernel level.
-//! Uses Aya framework for pure-Rust eBPF development [^56^].
+//! Uses Aya framework for pure-Rust eBPF development.
 
 use aya_ebpf::{
     bindings::xdp_action,
@@ -13,7 +14,7 @@ use aya_ebpf::{
     maps::{HashMap, LruHashMap, PerCpuArray, RingBuf},
     programs::XdpContext,
 };
-use aya_log_ebpf::{debug, info, warn};
+use aya_log_ebpf::info;
 use core::mem;
 
 // AIM Protocol packet header format
@@ -107,9 +108,9 @@ pub fn aim_firewall(ctx: XdpContext) -> u32 {
 }
 
 /// Core firewall logic
-fn try_aim_firewall(ctx: &XdpContext) -> Result<u32, ()> {
-    let data = ctx.data();
-    let data_end = ctx.data_end();
+fn try_aim_firewall(_ctx: &XdpContext) -> Result<u32, ()> {
+    let data = _ctx.data();
+    let data_end = _ctx.data_end();
 
     // Parse Ethernet header
     if data + ETH_HDR_LEN > data_end {
@@ -131,7 +132,7 @@ fn try_aim_firewall(ctx: &XdpContext) -> Result<u32, ()> {
 
     // Extract IP addresses and protocol
     let src_ip = unsafe { *((ip_start + 12) as *const u32) };
-    let dst_ip = unsafe { *((ip_start + 16) as *const u32) };
+    let dst_ip = unsafe { *((ip_start + 16) as *const u32) }};
     let protocol = unsafe { *((ip_start + 9) as *const u8) };
     let ip_header_len = (unsafe { *(ip_start as *const u8) } & 0x0F) as usize * 4;
 
@@ -145,7 +146,7 @@ fn try_aim_firewall(ctx: &XdpContext) -> Result<u32, ()> {
     if let Some(last_ts) = unsafe { RATE_LIMIT.get(&src_ip) } {
         if now - *last_ts < RATE_LIMIT_NS {
             // Rate limited
-            log_event(ctx, EventType::RateLimit, src_ip, dst_ip, 0, 0);
+            log_event(_ctx, EventType::RateLimit, src_ip, dst_ip, 0, 0);
             increment_stat(|s| s.rate_limited += 1);
             return Ok(xdp_action::XDP_DROP);
         }
@@ -169,7 +170,7 @@ fn try_aim_firewall(ctx: &XdpContext) -> Result<u32, ()> {
     // Check if AIM header fits
     if aim_header_offset + mem::size_of::<AimTrustedHeader>() > data_end {
         // No AIM header present - treat as untrusted
-        log_event(ctx, EventType::Drop, src_ip, dst_ip, 0, 0);
+        log_event(_ctx, EventType::Drop, src_ip, dst_ip, 0, 0);
         increment_stat(|s| s.dropped += 1);
         return Ok(xdp_action::XDP_DROP);
     }
@@ -185,32 +186,32 @@ fn try_aim_firewall(ctx: &XdpContext) -> Result<u32, ()> {
     if let Some(trusted) = unsafe { TRUSTED_ZONES.get(&zone_id) } {
         if *trusted == 0 {
             // Zone explicitly blacklisted
-            log_event(ctx, EventType::Drop, src_ip, dst_ip, zone_id, reputation);
+            log_event(_ctx, EventType::Drop, src_ip, dst_ip, zone_id, reputation);
             increment_stat(|s| s.dropped += 1);
             return Ok(xdp_action::XDP_DROP);
         }
     } else {
         // Unknown zone - check if we allow unknown zones (default: no)
         // For now, require explicit zone trust
-        log_event(ctx, EventType::Drop, src_ip, dst_ip, zone_id, reputation);
+        log_event(_ctx, EventType::Drop, src_ip, dst_ip, zone_id, reputation);
         increment_stat(|s| s.dropped += 1);
         return Ok(xdp_action::XDP_DROP);
     }
 
     // Check reputation threshold
     if reputation < MIN_REPUTATION {
-        log_event(ctx, EventType::Drop, src_ip, dst_ip, zone_id, reputation);
+        log_event(_ctx, EventType::Drop, src_ip, dst_ip, zone_id, reputation);
         increment_stat(|s| s.dropped += 1);
         return Ok(xdp_action::XDP_DROP);
     }
 
     // Packet passed all checks
-    log_event(ctx, EventType::Pass, src_ip, dst_ip, zone_id, reputation);
+    log_event(_ctx, EventType::Pass, src_ip, dst_ip, zone_id, reputation);
     increment_stat(|s| s.passed += 1);
 
     // Log high-reputation traffic for monitoring
     if reputation > 9000 {
-        info!(ctx, "High reputation packet from zone {} (rep={})", zone_id, reputation);
+        info!(_ctx, "High reputation packet from zone {} (rep={})", zone_id, reputation);
     }
 
     Ok(xdp_action::XDP_PASS)
@@ -246,7 +247,7 @@ fn increment_stat<F>(f: F)
 where
     F: FnOnce(&mut PacketStats),
 {
-    let cpu_id = unsafe { bpf_get_smp_processor_id() };
+    let _cpu_id = unsafe { bpf_get_smp_processor_id() };
     if let Some(stats) = unsafe { CPU_STATS.get_ptr_mut(0) } {
         unsafe {
             f(&mut *stats);
@@ -257,9 +258,7 @@ where
 /// Panic handler for no_std environment
 #[panic_handler]
 fn panic(_info: &core::panic::PanicInfo) -> ! {
-    // In eBPF, we cannot unwind - loop forever
-    // The verifier should prevent this from being reached
-    unsafe {
-        core::arch::asm!("unreachable", options(noreturn));
-    }
+    // Use unreachable_unchecked instead of inline assembly
+    // This is the standard approach for eBPF programs
+    unsafe { core::hint::unreachable_unchecked() }
 }
