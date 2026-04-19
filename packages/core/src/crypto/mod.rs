@@ -58,7 +58,8 @@ pub mod dilithium {
 
         /// Deserialize from bytes
         pub fn from_bytes(bytes: &[u8; SECRET_KEY_LENGTH]) -> Option<Self> {
-            SigningKey::<MlDsa65>::try_from(bytes).ok()
+            SigningKey::<MlDsa65>::try_from(bytes)
+                .ok()
                 .map(|sk| Self(Box::new(sk)))
         }
     }
@@ -76,8 +77,7 @@ pub mod dilithium {
 
         /// Deserialize from bytes
         pub fn from_bytes(bytes: &[u8; PUBLIC_KEY_LENGTH]) -> Option<Self> {
-            VerifyingKey::<MlDsa65>::try_from(bytes).ok()
-                .map(Self)
+            VerifyingKey::<MlDsa65>::try_from(bytes).ok().map(Self)
         }
     }
 
@@ -89,7 +89,8 @@ pub mod dilithium {
 
         /// Deserialize from bytes
         pub fn from_bytes(bytes: &[u8; SIGNATURE_LENGTH]) -> Option<Self> {
-            Signature::<MlDsa65>::try_from(bytes).ok()
+            Signature::<MlDsa65>::try_from(bytes)
+                .ok()
                 .map(|s| Self(Box::new(s)))
         }
     }
@@ -101,7 +102,7 @@ pub mod dilithium {
 
 pub mod kyber {
     use super::*;
-    use ml_kem::{MlKem768, EncapsulationKey, DecapsulationKey, Ciphertext};
+    use ml_kem::{Ciphertext, DecapsulationKey, EncapsulationKey, MlKem768};
 
     /// ML-KEM-768 public key size (1184 bytes)
     pub const PUBLIC_KEY_LENGTH: usize = 1184;
@@ -153,7 +154,8 @@ pub mod kyber {
 
         /// Deserialize from bytes
         pub fn from_bytes(bytes: &[u8; SECRET_KEY_LENGTH]) -> Option<Self> {
-            DecapsulationKey::<MlKem768>::try_from(bytes).ok()
+            DecapsulationKey::<MlKem768>::try_from(bytes)
+                .ok()
                 .map(|dk| Self(Box::new(dk)))
         }
     }
@@ -175,8 +177,7 @@ pub mod kyber {
 
         /// Deserialize from bytes
         pub fn from_bytes(bytes: &[u8; PUBLIC_KEY_LENGTH]) -> Option<Self> {
-            EncapsulationKey::<MlKem768>::try_from(bytes).ok()
-                .map(Self)
+            EncapsulationKey::<MlKem768>::try_from(bytes).ok().map(Self)
         }
     }
 
@@ -188,7 +189,8 @@ pub mod kyber {
 
         /// Deserialize from bytes
         pub fn from_bytes(bytes: &[u8; CIPHERTEXT_LENGTH]) -> Option<Self> {
-            Ciphertext::<MlKem768>::try_from(bytes).ok()
+            Ciphertext::<MlKem768>::try_from(bytes)
+                .ok()
                 .map(|ct| Self(Box::new(ct)))
         }
     }
@@ -233,9 +235,9 @@ pub mod kdf {
 // =============================================================================
 
 pub mod hybrid {
-    use super::{kyber, kdf};
-    use x25519_dalek::{EphemeralSecret, PublicKey as X25519PublicKey};
+    use super::{kdf, kyber};
     use rand_core::CryptoRngCore;
+    use x25519_dalek::{EphemeralSecret, PublicKey as X25519PublicKey};
 
     /// Hybrid X25519 + ML-KEM key encapsulation
     /// Provides defense-in-depth: both classical and PQ must be broken
@@ -262,7 +264,7 @@ pub mod hybrid {
         /// Encapsulate (generates ephemeral X25519 + Kyber)
         pub fn encapsulate<R: CryptoRngCore>(
             pk: &HybridPublicKey,
-            rng: &mut R
+            rng: &mut R,
         ) -> (HybridCiphertext, [u8; 32]) {
             // X25519 ephemeral
             let eph_sk = EphemeralSecret::random_from_rng(rng);
