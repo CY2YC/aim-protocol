@@ -4,17 +4,16 @@ version = "0.1.0"
 edition = "2021"
 authors = ["AIM Protocol Contributors"]
 license = "MIT OR Apache-2.0"
-description = "Core cryptographic and identity primitives for AIM Protocol"
-rust-version = "1.78"
+description = "Core cryptographic primitives and identity management for AIM Protocol"
 
 [features]
 default = ["std"]
-std = []
-no_std = []
+std = ["ml-kem/std", "ml-dsa/std", "serde/std", "rand/std", "rand/std_rng"]
+no_std = ["serde/alloc"]
 
 [dependencies]
-# NIST PQC - FIPS 203/204 compliant [^19^][^12^]
-ml-kem = { version = "0.3.0-rc.0", default-features = false }
+# NIST PQC - FIPS 203/204 compliant
+ml-kem = { version = "0.3.0-rc.2", default-features = false }
 ml-dsa = { version = "0.1.0-rc.8", default-features = false }
 
 # Cryptographic utilities
@@ -24,13 +23,12 @@ blake3 = { workspace = true }
 rand = { workspace = true }
 rand_core = { workspace = true }
 
+# X25519 for hybrid
 x25519-dalek = { version = "2.0", default-features = false, features = ["static_secrets", "getrandom"] }
-
-# Secret sharing - using shamir-vault for no_std support [^32^]
-shamir-vault = { version = "1.2", default-features = false }
 
 # Serialization
 serde = { workspace = true, default-features = false, features = ["derive"] }
+serde_bytes = { version = "0.11", default-features = false, features = ["alloc"] }
 postcard = { workspace = true }
 
 # Security
@@ -39,6 +37,16 @@ constant_time_eq = { workspace = true }
 
 # Error handling
 thiserror = { workspace = true }
+
+# Hex encoding/decoding
+hex = { workspace = true }
+
+# Revocation - Sparse Merkle Tree + Bloom filter
+monotree = { version = "0.1", default-features = false }
+bloomfilter = { version = "1.0", default-features = false }
+
+# Secret sharing - using shamir-vault for no_std support
+shamir-vault = { version = "1.2", default-features = false }
 
 [dev-dependencies]
 criterion = { workspace = true }
