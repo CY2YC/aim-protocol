@@ -14,6 +14,9 @@ overflow-checks = false
 lto = true
 panic = "abort"
 
+[profile.release]
+panic = "abort"
+
 [[bin]]
 name = "aim-xdp"
 path = "src/main.rs"
