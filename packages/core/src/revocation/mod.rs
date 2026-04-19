@@ -1,54 +1,60 @@
-//! Revocation System: Sparse Merkle Tree + Bloom Filter + BFT Signing
+//! Revocation system using Sparse Merkle Trees (SMT) + Bloom filters
 //!
-//! Implements efficient revocation checking with:
-//! - Sparse Merkle Tree for cryptographic proofs (monotree crate)
-//! - Bloom filter for probabilistic fast-path rejection
-//! - BFT threshold signatures for governance
+//! Provides efficient revocation checking with cryptographic proofs.
 
 use blake3::Hasher as Blake3;
 use serde::{Deserialize, Serialize};
-use std::collections::HashSet;
+use thiserror::Error;
 
-/// Revocation entry for a single identity
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct RevocationEntry {
-    /// DID of revoked identity
-    pub did: String,
-    /// Revocation timestamp
-    pub timestamp: u64,
-    /// Reason code
-    pub reason: u8,
-    /// BFT signature threshold
-    pub signatures: Vec<ThresholdSignature>,
+/// Errors in revocation operations
+#[derive(Error, Debug)]
+pub enum RevocationError {
+    #[error("Serialization failed")]
+    SerializationFailed,
+    #[error("Proof verification failed")]
+    ProofVerificationFailed,
+    #[error("Entry not found")]
+    NotFound,
 }
 
-/// Threshold signature share
+/// Sparse Merkle Tree for revocation
+pub struct RevocationSmt {
+    /// Monotree instance
+    tree: monotree::Monotree<Blake3, monotree::database::MemoryDB>,
+    /// Current root hash
+    root: Option<monotree::Hash>,
+}
+
+/// Revocation entry for a DID
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct ThresholdSignature {
-    pub validator_id: [u8; 32],
+pub struct RevocationEntry {
+    /// DID being revoked
+    pub did: String,
+    /// Epoch when revoked
+    pub epoch: u64,
+    /// Reason code
+    pub reason: u16,
+    /// Signature by authority
     pub signature: Vec<u8>,
 }
 
-/// Sparse Merkle Tree based revocation list
-///
-/// Uses monotree for production-grade SMT
-pub struct RevocationSmt {
-    /// Underlying SMT (using monotree)
-    tree: monotree::Monotree<Blake3, monotree::database::MemoryDB>,
-    /// Current root hash
-    root: Option<[u8; 32]>,
+/// Merkle proof for revocation
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct MerkleProof {
+    /// Proof data (None if direct lookup)
+    pub proof: Option<monotree::Proof>,
 }
 
 impl RevocationSmt {
     /// Create new empty SMT
     pub fn new() -> Self {
-        Self { 
-            tree: monotree::Monotree::new(),  // Fixed: Monotree::new() not default()
-            root: None 
+        Self {
+            tree: monotree::Monotree::new(),
+            root: None,
         }
     }
 
-    /// Revoke a DID (insert into SMT)
+    /// Add revocation entry
     pub fn revoke(
         &mut self,
         did: &str,
@@ -60,54 +66,45 @@ impl RevocationSmt {
 
         // Hash DID to get key (256-bit for SMT path)
         let key = Self::hash_did(did);
-        
+
         // Hash the value
         let value_hash = blake3::hash(&value).into();
 
-        // Insert into SMT
-        let new_root = self
+        // Insert into tree
+        self.root = self
             .tree
             .insert(self.root.as_ref(), &key, &value_hash)
-            .map_err(|_| RevocationError::TreeInsertFailed)?;
+            .map_err(|_| RevocationError::SerializationFailed)?;
 
-        self.root = Some(new_root);
-        Ok(new_root)
+        Ok(self.root.unwrap_or([0u8; 32]))
     }
 
-    /// Check if DID is revoked (with proof)
+    /// Check if DID is revoked and get proof
     pub fn is_revoked(&self, did: &str) -> (bool, Option<MerkleProof>) {
         let key = Self::hash_did(did);
 
-        // Get value at key
         match self.tree.get(self.root.as_ref(), &key) {
             Ok(Some(_)) => {
                 // Generate proof
-                match self.tree.get_proof(self.root.as_ref(), &key) {  // Fixed: get_proof not get_merkle_proof
+                match self.tree.get_proof(self.root.as_ref(), &key) {
                     Ok(proof) => (true, Some(MerkleProof { proof: Some(proof) })),
                     Err(_) => (true, Some(MerkleProof { proof: None })),
                 }
             }
-            Ok(None) => (false, None),
-            Err(_) => (false, None),
+            _ => (false, None),
         }
     }
 
     /// Verify Merkle proof
     pub fn verify_proof(&self, did: &str, entry_hash: &[u8; 32], proof: &MerkleProof) -> bool {
         let key = Self::hash_did(did);
-        
+
         match &proof.proof {
             Some(proof_data) => {
                 monotree::verify_proof(self.root.as_ref(), &key, entry_hash, proof_data)
-                    .unwrap_or(false)
             }
             None => false,
         }
-    }
-
-    /// Get current root
-    pub fn root(&self) -> Option<[u8; 32]> {
-        self.root
     }
 
     /// Hash DID to 256-bit key
@@ -122,134 +119,88 @@ impl Default for RevocationSmt {
     }
 }
 
-/// Merkle proof for revocation verification
-#[derive(Clone, Debug)]
-pub struct MerkleProof {
-    proof: Option<Vec<u8>>,
-}
-
-/// Probabilistic fast-path filter
-///
-/// Uses bloomfilter crate for production use
+/// Bloom filter for probabilistic revocation checking
 pub struct RevocationBloomFilter {
     filter: bloomfilter::Bloom<Vec<u8>>,
 }
 
 impl RevocationBloomFilter {
-    /// Create new Bloom filter
-    ///
-    /// capacity: expected number of revoked DIDs
-    /// fp_rate: acceptable false positive rate (e.g., 0.001 = 0.1%)
+    /// Create new bloom filter
     pub fn new(capacity: u32, fp_rate: f64) -> Self {
         Self {
             filter: bloomfilter::Bloom::new_for_fp_rate(capacity, fp_rate),
         }
     }
 
-    /// Add revoked DID to filter
+    /// Add DID to filter
     pub fn add(&mut self, did: &str) {
-        self.filter.set(&did.as_bytes().to_vec());
+        self.filter.set(did.as_bytes());
     }
 
-    /// Check if DID might be revoked
-    ///
-    /// Returns true if probably revoked (check SMT to confirm)
-    /// Returns false if definitely not revoked
+    /// Check if DID might be revoked (probabilistic)
     pub fn probably_contains(&self, did: &str) -> bool {
-        self.filter.check(&did.as_bytes().to_vec())
+        self.filter.check(did.as_bytes())
     }
 
-    /// Serialize filter for distribution
+    /// Serialize to bytes
     pub fn to_bytes(&self) -> Vec<u8> {
-        bincode::serialize(&self.filter).unwrap_or_default()
+        postcard::to_allocvec(&self.filter).unwrap_or_default()
     }
 
-    /// Deserialize filter
+    /// Deserialize from bytes
     pub fn from_bytes(bytes: &[u8]) -> Option<Self> {
-        bincode::deserialize(bytes).ok().map(|filter| Self { filter })
+        postcard::from_bytes(bytes).ok().map(|filter| Self { filter })
     }
 }
 
-/// Combined revocation checker (Bloom + SMT)
+/// Combined revocation checker (SMT + Bloom filter)
 pub struct RevocationChecker {
-    /// Fast probabilistic filter
-    bloom: RevocationBloomFilter,
-    /// Cryptographic SMT
+    /// Sparse Merkle Tree for exact checking
     smt: RevocationSmt,
-    /// Cache of recently checked DIDs
-    cache: HashSet<String>,
+    /// Bloom filter for fast negative checks
+    bloom: RevocationBloomFilter,
 }
 
 impl RevocationChecker {
     /// Create new checker
-    pub fn new(expected_revocations: u32) -> Self {
+    pub fn new() -> Self {
         Self {
-            bloom: RevocationBloomFilter::new(expected_revocations, 0.001),
             smt: RevocationSmt::new(),
-            cache: HashSet::new(),
+            bloom: RevocationBloomFilter::new(10000, 0.001),
         }
     }
 
-    /// Add revocation
-    pub fn revoke(&mut self, entry: RevocationEntry) -> Result<[u8; 32], RevocationError> {
-        // Add to Bloom filter (fast path)
-        self.bloom.add(&entry.did);
-
-        // Add to SMT (cryptographic proof)
-        let root = self.smt.revoke(&entry.did, &entry)?;
-
-        Ok(root)
+    /// Revoke a DID
+    pub fn revoke(
+        &mut self,
+        did: &str,
+        entry: &RevocationEntry,
+    ) -> Result<[u8; 32], RevocationError> {
+        self.bloom.add(did);
+        self.smt.revoke(did, entry)
     }
 
-    /// Check if DID is revoked
-    ///
-    /// Fast path: Bloom filter negative = definitely not revoked
-    /// Slow path: SMT lookup with proof
-    pub fn check_revocation(&self, did: &str) -> RevocationStatus {
-        // Check cache first
-        if self.cache.contains(did) {
-            return RevocationStatus::NotRevoked;
-        }
-
-        // Fast path: Bloom filter
+    /// Check if revoked (fast negative via Bloom, exact via SMT)
+    pub fn is_revoked(&self, did: &str) -> (bool, Option<MerkleProof>) {
+        // Fast negative check
         if !self.bloom.probably_contains(did) {
-            return RevocationStatus::NotRevoked;
+            return (false, None);
         }
 
-        // Slow path: SMT verification
-        let (is_revoked, proof) = self.smt.is_revoked(did);
-
-        if is_revoked {
-            RevocationStatus::Revoked { proof }
-        } else {
-            // Bloom false positive - add to cache
-            RevocationStatus::NotRevoked
-        }
+        // Exact check via SMT
+        self.smt.is_revoked(did)
     }
 
-    /// Get SMT root for BFT signing
-    pub fn smt_root(&self) -> Option<[u8; 32]> {
-        self.smt.root()
+    /// Get current SMT root
+    pub fn root(&self) -> Option<[u8; 32]> {
+        self.smt.root
     }
 }
 
-/// Revocation check result
-#[derive(Clone, Debug)]
-pub enum RevocationStatus {
-    NotRevoked,
-    Revoked { proof: Option<MerkleProof> },
-}
-
-#[derive(Debug, thiserror::Error)]
-pub enum RevocationError {
-    #[error("Serialization failed")]
-    SerializationFailed,
-    #[error("SMT insertion failed")]
-    TreeInsertFailed,
-    #[error("Empty root after insertion")]
-    EmptyRoot,
-    #[error("Invalid proof")]
-    InvalidProof,
+impl Default for RevocationChecker {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 #[cfg(test)]
@@ -261,71 +212,60 @@ mod tests {
         let mut smt = RevocationSmt::new();
 
         let entry = RevocationEntry {
-            did: "did:aim:test123".to_string(),
-            timestamp: 1234567890,
+            did: "did:aim:test1".to_string(),
+            epoch: 1,
             reason: 1,
-            signatures: vec![],
+            signature: vec![1u8; 64],
         };
 
-        // Revoke
-        let root1 = smt.revoke(&entry.did, &entry).unwrap();
+        let root = smt.revoke("did:aim:test1", &entry).unwrap();
+        assert_ne!(root, [0u8; 32]);
 
-        // Check revoked
-        let (is_revoked, proof) = smt.is_revoked(&entry.did);
-        assert!(is_revoked);
+        let (revoked, proof) = smt.is_revoked("did:aim:test1");
+        assert!(revoked);
         assert!(proof.is_some());
 
-        // Check not revoked
-        let (is_revoked2, _) = smt.is_revoked("did:aim:other");
-        assert!(!is_revoked2);
+        let (not_revoked, _) = smt.is_revoked("did:aim:unknown");
+        assert!(!not_revoked);
     }
 
     #[test]
     fn test_bloom_filter() {
         let mut bloom = RevocationBloomFilter::new(1000, 0.01);
-
         bloom.add("did:aim:test1");
-        bloom.add("did:aim:test2");
 
         assert!(bloom.probably_contains("did:aim:test1"));
-        assert!(bloom.probably_contains("did:aim:test2"));
-        assert!(!bloom.probably_contains("did:aim:test3")); // Definite no
+        assert!(!bloom.probably_contains("did:aim:test2"));
     }
 
     #[test]
     fn test_combined_checker() {
-        let mut checker = RevocationChecker::new(100);
+        let mut checker = RevocationChecker::new();
 
         let entry = RevocationEntry {
-            did: "did:aim:revoked".to_string(),
-            timestamp: 1234567890,
+            did: "did:aim:test1".to_string(),
+            epoch: 1,
             reason: 1,
-            signatures: vec![],
+            signature: vec![1u8; 64],
         };
 
-        checker.revoke(entry).unwrap();
+        checker.revoke("did:aim:test1", &entry).unwrap();
 
-        // Check revoked
-        match checker.check_revocation("did:aim:revoked") {
-            RevocationStatus::Revoked { .. } => {}
-            _ => panic!("Expected revoked"),
-        }
+        let (revoked, _) = checker.is_revoked("did:aim:test1");
+        assert!(revoked);
 
-        // Check not revoked
-        match checker.check_revocation("did:aim:valid") {
-            RevocationStatus::NotRevoked => {}
-            _ => panic!("Expected not revoked"),
-        }
+        let (not_revoked, _) = checker.is_revoked("did:aim:unknown");
+        assert!(!not_revoked);
     }
 
     #[test]
     fn test_bloom_serialization() {
         let mut bloom1 = RevocationBloomFilter::new(1000, 0.01);
         bloom1.add("did:aim:test1");
-        
+
         let bytes = bloom1.to_bytes();
         let bloom2 = RevocationBloomFilter::from_bytes(&bytes).unwrap();
-        
+
         assert!(bloom2.probably_contains("did:aim:test1"));
     }
 }
