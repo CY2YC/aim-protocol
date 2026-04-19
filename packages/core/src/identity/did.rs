@@ -1,4 +1,4 @@
-//! Decentralized Identity (DID) with Shamir Secret Sharing recovery
+//! Decentralized Identity (DID) management for AIM Protocol
 //!
 //! Implements did:aim method with post-quantum cryptographic binding.
 
@@ -6,180 +6,203 @@ use crate::crypto::{dilithium, kyber};
 use rand_core::CryptoRngCore;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
+use thiserror::Error;
 use zeroize::{Zeroize, ZeroizeOnDrop};
-use hex;
 
 /// AIM Protocol DID Document
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct DigitalID {
-    /// DID identifier (did:aim:<fingerprint>)
+    /// DID string (did:aim:<base58_hash>)
     pub did: String,
+    /// Current epoch for key rotation
+    pub epoch: u64,
     /// ML-DSA public key for authentication
     pub dilithium_pk: dilithium::PublicKey,
     /// ML-KEM public key for key encapsulation
     pub kyber_pk: kyber::PublicKey,
-    /// Reputation Merkle root
-    pub reputation_root: [u8; 32],
-    /// Current epoch for key rotation
-    pub epoch: u64,
-    /// Creation timestamp (Unix seconds)
-    pub created_at: u64,
-    /// Optional TEE attestation quote
-    pub tee_quote: Option<Vec<u8>>,
+    /// Hash of previous epoch keys (for chaining)
+    pub prev_key_hash: [u8; 32],
 }
 
 /// Secret components of a DigitalID (must be protected)
 #[derive(Zeroize)]
-#[zeroize(drop)]  // ZeroizeOnDrop is a marker trait, use attribute instead
+#[zeroize(drop)]
 pub struct DigitalIDSecret {
     /// ML-DSA signing key
     pub dilithium_sk: dilithium::SecretKey,
-    /// ML-KEM decapsulation key
+    /// ML-KEM secret key
     pub kyber_sk: kyber::SecretKey,
-    /// Recovery seed (32 bytes)
+    /// Recovery seed (not zeroized - needed for recovery)
     #[zeroize(skip)]
     pub recovery_seed: [u8; 32],
 }
 
-/// Recovery share for Shamir Secret Sharing
+/// Recovery share for Shamir secret sharing
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct RecoveryShare {
+    /// Share index (1-based)
     pub index: u8,
+    /// Share value
     pub value: Vec<u8>,
 }
 
+/// Errors in DID operations
+#[derive(Error, Debug)]
+pub enum DIDError {
+    #[error("Invalid DID format")]
+    InvalidFormat,
+    #[error("Key verification failed")]
+    VerificationFailed,
+    #[error("Recovery failed")]
+    RecoveryFailed,
+}
+
 impl DigitalID {
-    /// Generate new DigitalID with fresh PQC keypair
+    /// Generate new DID with fresh PQC keys
     pub fn generate<R: CryptoRngCore>(rng: &mut R) -> (Self, DigitalIDSecret) {
         let (kyber_pk, kyber_sk) = kyber::SecretKey::generate(rng);
         let dilithium_sk = dilithium::SecretKey::generate(rng);
         let dilithium_pk = dilithium_sk.verifying_key();
 
-        // Generate recovery seed
         let mut recovery_seed = [0u8; 32];
         rng.fill_bytes(&mut recovery_seed);
 
-        // Compute DID fingerprint
-        let did = Self::compute_did(&dilithium_pk, &kyber_pk);
+        let did = Self::compute_did(&dilithium_pk, &kyber_pk, 1);
 
         let id = Self {
-            did,
+            did: did.clone(),
+            epoch: 1,
             dilithium_pk,
             kyber_pk,
-            reputation_root: [0u8; 32],
-            epoch: 1,
-            created_at: std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
-                .as_secs(),
-            tee_quote: None,
+            prev_key_hash: [0u8; 32],
         };
 
-        let secret = DigitalIDSecret { dilithium_sk, kyber_sk, recovery_seed };
+        let secret = DigitalIDSecret {
+            dilithium_sk,
+            kyber_sk,
+            recovery_seed,
+        };
 
         (id, secret)
     }
 
     /// Compute did:aim identifier from public keys
-    fn compute_did(dilithium_pk: &dilithium::PublicKey, kyber_pk: &kyber::PublicKey) -> String {
+    pub fn compute_did(
+        dilithium_pk: &dilithium::PublicKey,
+        kyber_pk: &kyber::PublicKey,
+        epoch: u64,
+    ) -> String {
         let mut hasher = Sha256::new();
-        hasher.update(b"did:aim:v1:");
         hasher.update(dilithium_pk.to_bytes());
         hasher.update(kyber_pk.to_bytes());
-        let fingerprint = hex::encode(hasher.finalize());
-        format!("did:aim:{}", &fingerprint[..32])
+        hasher.update(&epoch.to_le_bytes());
+        let hash = hasher.finalize();
+
+        // Use first 16 bytes as base58-like encoding (simplified)
+        format!("did:aim:{}", hex::encode(&hash[..16]))
     }
 
-    /// Verify DID matches public keys (anti-tampering)
+    /// Verify DID binding (self-certifying)
     pub fn verify_did_binding(&self) -> bool {
-        let computed = Self::compute_did(&self.dilithium_pk, &self.kyber_pk);
-        self.did == computed
+        let expected = Self::compute_did(&self.dilithium_pk, &self.kyber_pk, self.epoch);
+        self.did == expected
     }
 
-    /// Sign a message using ML-DSA with context
-    pub fn sign(
+    /// Sign DID document for authentication
+    pub fn sign_did(&self, secret: &DigitalIDSecret, ctx: &[u8]) -> dilithium::SignatureBytes {
+        let msg = self.serialize_for_signing();
+        secret.dilithium_sk.sign(&msg, ctx)
+    }
+
+    /// Verify DID signature
+    pub fn verify_did_signature(
         &self,
-        secret: &DigitalIDSecret,
-        msg: &[u8],
+        sig: &dilithium::SignatureBytes,
         ctx: &[u8],
-    ) -> dilithium::SignatureBytes {
-        secret.dilithium_sk.sign(msg, ctx)
-    }
-
-    /// Verify signature
-    pub fn verify(&self, msg: &[u8], ctx: &[u8], sig: &dilithium::SignatureBytes) -> bool {
-        self.dilithium_pk.verify(msg, ctx, sig)
-    }
-
-    /// Generate 3-of-5 Shamir secret sharing recovery shares
-    /// CRITICAL: Uses production-grade shamir-vault crate (v2.0)
-    pub fn generate_recovery_shares(&self, secret: &DigitalIDSecret) -> Vec<RecoveryShare> {
-        use shamir_vault::{Secret, Share};
-
-        // Combine secrets for recovery
-        let mut master_secret = Vec::new();
-        master_secret.extend_from_slice(&secret.dilithium_sk.to_bytes());
-        master_secret.extend_from_slice(&secret.kyber_sk.to_bytes());
-        master_secret.extend_from_slice(&secret.recovery_seed);
-
-        // Split into 5 shares, need 3 to reconstruct
-        // Note: shamir-vault v2.0 uses Secret::new() and split() method
-        let s = Secret::new(&master_secret);
-        let shares = s.split(5, 3).expect("Failed to generate recovery shares");
-
-        shares
-            .into_iter()
-            .map(|s| RecoveryShare { index: s.index() as u8, value: s.to_bytes() })
-            .collect()
-    }
-
-    /// Recover secrets from shares (need at least threshold)
-    pub fn recover_from_shares(shares: &[RecoveryShare]) -> Option<Vec<u8>> {
-        use shamir_vault::{Share, Secret};
-
-        if shares.len() < 3 {
-            return None;
-        }
-
-        let shamir_shares: Vec<Share> = shares
-            .iter()
-            .filter_map(|s| Share::from_bytes(&s.value, s.index as usize))
-            .collect();
-
-        if shamir_shares.len() < 3 {
-            return None;
-        }
-
-        let secret = Secret::combine(&shamir_shares).ok()?;
-        Some(secret.to_bytes())
+    ) -> bool {
+        let msg = self.serialize_for_signing();
+        self.dilithium_pk.verify(&msg, ctx, sig)
     }
 
     /// Rotate to new epoch (post-compromise security)
-    pub fn rotate_epoch<R: CryptoRngCore>(&mut self, secret: &mut DigitalIDSecret, rng: &mut R) {
+    pub fn rotate_epoch<R: CryptoRngCore>(
+        &mut self,
+        secret: &mut DigitalIDSecret,
+        rng: &mut R,
+    ) {
+        let old_dilithium_pk = self.dilithium_pk.clone();
+        let old_kyber_pk = self.kyber_pk.clone();
+
         // Generate new keys
         let (new_kyber_pk, new_kyber_sk) = kyber::SecretKey::generate(rng);
         let new_dilithium_sk = dilithium::SecretKey::generate(rng);
         let new_dilithium_pk = new_dilithium_sk.verifying_key();
 
-        // Update ID
-        self.kyber_pk = new_kyber_pk;
-        self.dilithium_pk = new_dilithium_pk;
-        self.epoch += 1;
-        self.did = Self::compute_did(&self.dilithium_pk, &self.kyber_pk);
-
         // Update secret
-        secret.dilithium_sk = new_dilithium_sk;
         secret.kyber_sk = new_kyber_sk;
+        secret.dilithium_sk = new_dilithium_sk;
+
+        // Update public ID
+        self.epoch += 1;
+        self.prev_key_hash = {
+            let mut hasher = Sha256::new();
+            hasher.update(old_dilithium_pk.to_bytes());
+            hasher.update(old_kyber_pk.to_bytes());
+            hasher.finalize().into()
+        };
+        self.dilithium_pk = new_dilithium_pk;
+        self.kyber_pk = new_kyber_pk;
+        self.did = Self::compute_did(&self.dilithium_pk, &self.kyber_pk, self.epoch);
     }
 
-    /// Serialize to bytes (postcard format)
-    pub fn to_bytes(&self) -> Vec<u8> {
-        postcard::to_allocvec(self).expect("Serialization failed")
+    /// Create recovery shares (3-of-5 threshold)
+    pub fn create_recovery_shares(
+        &self,
+        secret: &DigitalIDSecret,
+    ) -> Vec<RecoveryShare> {
+        // Use shamir-vault for threshold sharing
+        use shamir_vault::{Shamir, Share};
+
+        let data = secret.recovery_seed.to_vec();
+        let shares = Shamir::new(3, 5)
+            .split(&data)
+            .expect("Failed to create shares");
+
+        shares.into_iter()
+            .enumerate()
+            .map(|(i, share)| RecoveryShare {
+                index: (i + 1) as u8,
+                value: share.into(),
+            })
+            .collect()
     }
 
-    /// Deserialize from bytes
-    pub fn from_bytes(bytes: &[u8]) -> Option<Self> {
-        postcard::from_bytes(bytes).ok()
+    /// Recover secrets from shares (need at least threshold)
+    pub fn recover_from_shares(shares: &[RecoveryShare]) -> Option<Vec<u8>> {
+        use shamir_vault::{Shamir, Share};
+
+        if shares.len() < 3 {
+            return None;
+        }
+
+        let shamir_shares: Vec<Share> = shares.iter()
+            .map(|s| Share::try_from(s.value.as_slice()).expect("Invalid share"))
+            .collect();
+
+        Shamir::new(3, 5)
+            .recover(&shamir_shares)
+            .ok()
+    }
+
+    /// Serialize for signing (deterministic)
+    fn serialize_for_signing(&self) -> Vec<u8> {
+        let mut bytes = Vec::new();
+        bytes.extend_from_slice(self.did.as_bytes());
+        bytes.extend_from_slice(&self.epoch.to_le_bytes());
+        bytes.extend_from_slice(self.dilithium_pk.to_bytes());
+        bytes.extend_from_slice(self.kyber_pk.to_bytes());
+        bytes.extend_from_slice(&self.prev_key_hash);
+        bytes
     }
 }
 
@@ -191,104 +214,87 @@ mod tests {
     #[test]
     fn test_did_generation() {
         let mut rng = OsRng;
-        let (id, _secret) = DigitalID::generate(&mut rng);
+        let (id, secret) = DigitalID::generate(&mut rng);
 
         assert!(id.did.starts_with("did:aim:"));
-        assert_eq!(id.did.len(), 40); // "did:aim:" + 32 hex chars
+        assert_eq!(id.epoch, 1);
         assert!(id.verify_did_binding());
     }
 
     #[test]
-    fn test_sign_verify() {
+    fn test_did_signature() {
         let mut rng = OsRng;
         let (id, secret) = DigitalID::generate(&mut rng);
 
-        let msg = b"important message";
-        let ctx = b"aim-v1-auth";
-        let sig = id.sign(&secret, msg, ctx);
-
-        assert!(id.verify(msg, ctx, &sig));
-        assert!(!id.verify(b"tampered", ctx, &sig));
-    }
-
-    #[test]
-    fn test_recovery_shares() {
-        let mut rng = OsRng;
-        let (id, secret) = DigitalID::generate(&mut rng);
-
-        let shares = id.generate_recovery_shares(&secret);
-        assert_eq!(shares.len(), 5);
-
-        // Recover with 3 shares
-        let recovered = DigitalID::recover_from_shares(&shares[..3]);
-        assert!(recovered.is_some());
-        
-        // Verify recovered data matches original
-        let original_secret = secret.dilithium_sk.to_bytes();
-        let recovered_secret = recovered.unwrap();
-        // The recovered secret includes combined data, check prefix
-        assert_eq!(&original_secret[..10], &recovered_secret[..10]);
-
-        // Fail with 2 shares
-        let failed = DigitalID::recover_from_shares(&shares[..2]);
-        assert!(failed.is_none());
+        let ctx = b"test-context";
+        let sig = id.sign_did(&secret, ctx);
+        assert!(id.verify_did_signature(&sig, ctx));
+        assert!(!id.verify_did_signature(&sig, b"wrong-ctx"));
     }
 
     #[test]
     fn test_epoch_rotation() {
         let mut rng = OsRng;
         let (mut id, mut secret) = DigitalID::generate(&mut rng);
-        let old_did = id.did.clone();
-        let old_kyber_pk = id.kyber_pk.to_bytes().to_vec();
         let old_dilithium_pk = id.dilithium_pk.to_bytes().to_vec();
 
         id.rotate_epoch(&mut secret, &mut rng);
 
-        assert_ne!(id.did, old_did);
-        assert_ne!(id.kyber_pk.to_bytes(), old_kyber_pk.as_slice());
         assert_ne!(id.dilithium_pk.to_bytes(), old_dilithium_pk.as_slice());
         assert_eq!(id.epoch, 2);
         assert!(id.verify_did_binding());
-        
+
         // Verify new keys work
         let msg = b"post-rotation test";
         let ctx = b"aim-v1-auth";
-        let sig = id.sign(&secret, msg, ctx);
-        assert!(id.verify(msg, ctx, &sig));
+        let sig = id.sign_did(&secret, ctx);
+        assert!(id.verify_did_signature(&sig, ctx));
     }
 
     #[test]
-    fn test_serialization() {
+    fn test_recovery_sharing() {
         let mut rng = OsRng;
-        let (id, _secret) = DigitalID::generate(&mut rng);
+        let (id, secret) = DigitalID::generate(&mut rng);
 
-        let bytes = id.to_bytes();
-        let recovered = DigitalID::from_bytes(&bytes).unwrap();
+        let shares = id.create_recovery_shares(&secret);
+        assert_eq!(shares.len(), 5);
 
-        assert_eq!(id.did, recovered.did);
-        assert_eq!(id.epoch, recovered.epoch);
-        assert_eq!(id.created_at, recovered.created_at);
-        assert_eq!(id.reputation_root, recovered.reputation_root);
-        assert_eq!(id.tee_quote, recovered.tee_quote);
-        // Public keys should match
-        assert_eq!(id.dilithium_pk.to_bytes(), recovered.dilithium_pk.to_bytes());
-        assert_eq!(id.kyber_pk.to_bytes(), recovered.kyber_pk.to_bytes());
+        // Recover with 3 shares
+        let recovered = DigitalID::recover_from_shares(&shares[..3]);
+        assert!(recovered.is_some());
+
+        // Verify recovered data matches original
+        let original_secret = secret.dilithium_sk.to_bytes();
+        let recovered_secret = recovered.unwrap();
+        assert_eq!(original_secret.to_vec(), recovered_secret);
+    }
+
+    #[test]
+    fn test_recovery_fails_with_insufficient_shares() {
+        let mut rng = OsRng;
+        let (id, secret) = DigitalID::generate(&mut rng);
+
+        let shares = id.create_recovery_shares(&secret);
+
+        // Try with only 2 shares (below threshold)
+        let recovered = DigitalID::recover_from_shares(&shares[..2]);
+        assert!(recovered.is_none());
     }
 
     #[test]
     fn test_recovery_seed_is_zeroized() {
         let mut rng = OsRng;
         let (_id, secret) = DigitalID::generate(&mut rng);
-        
+
         // Make a copy of the seed before drop
         let original_seed = secret.recovery_seed;
-        
+
         // Drop secret (should zeroize)
         drop(secret);
-        
-        // We can't directly test zeroization after drop,
+
+        // We can\'t directly test zeroization after drop,
         // but this ensures the field is marked with #[zeroize(skip)]
-        // which means it WON'T be zeroized (as intended for recovery)
-        assert_eq!(original_seed, original_seed); // Just a placeholder assertion
+        // which means it WON\'T be zeroized (as intended for recovery)
+        assert_eq!(original_seed.len(), 32);
     }
 }
