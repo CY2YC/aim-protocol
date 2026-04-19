@@ -29,6 +29,11 @@ hkdf = "0.12"
 blake3 = "1.5"
 rand = { version = "0.8", features = ["std", "std_rng"] }
 rand_core = "0.6"
+hex = "0.4"
+serde_bytes = "0.11"
+monotree = "0.1"
+bloomfilter = "1.0"
+
 
 # Serialization
 serde = { version = "1.0", features = ["derive"] }
@@ -44,7 +49,6 @@ thiserror = "1.0"
 anyhow = "1.0"
 
 # Utilities
-hex = "0.4"
 zeroize = { version = "1.7", features = ["derive"] }
 constant_time_eq = "0.3"
 
