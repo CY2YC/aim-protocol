@@ -1,33 +1,9 @@
-//! AIM Protocol Core Library
-//!
-//! Post-quantum cryptographic primitives, identity management,
-//! secure sessions, and revocation.
-
-pub mod crypto;
-pub mod handshake;
-pub mod identity;
-pub mod revocation;
-pub mod session;
-
-// Re-exports for ergonomic API
-pub use crypto::{dilithium, hybrid, kdf, kyber};
-pub use handshake::{Handshake, HandshakeState, perform_handshake};
-pub use identity::{DigitalID, DigitalIDSecret, RecoveryShare};
-pub use revocation::{RevocationChecker, RevocationEntry};
-pub use session::{ReplayWindow, SecureSession, SessionKeyManager, SessionKeys};
-'''
-
-with open('/mnt/agents/output/lib_rs_fixed.rs', 'w') as f:
-    f.write(lib_rs)
-
-# 5. Fix session/replay.rs - remove duplicate SessionKeys, import from handshake
-replay_fixed = '''//! Replay Protection & Session Key Rotation
+//! Replay Protection & Session Key Rotation
 //!
 //! Implements 64-bit sliding window for replay detection
 //! and HKDF-based key rotation for post-compromise security.
 
 use crate::crypto::kdf;
-use crate::handshake::SessionKeys;
 use zeroize::{Zeroize, ZeroizeOnDrop};
 
 /// 64-packet sliding window for replay detection
@@ -46,10 +22,10 @@ pub struct ReplayWindow {
 impl ReplayWindow {
     /// Create new replay window
     pub fn new() -> Self {
-        Self {
-            base_seq: 0,
-            bitmap: 0,
-            max_window: 64,
+        Self { 
+            base_seq: 0, 
+            bitmap: 0, 
+            max_window: 64 
         }
     }
 
@@ -115,7 +91,7 @@ impl Default for ReplayWindow {
 
 /// Session key manager with automatic rotation
 #[derive(Zeroize)]
-#[zeroize(drop)]
+#[zeroize(drop)]  // Fixed: Use attribute instead of manual impl
 pub struct SessionKeyManager {
     /// Current base key
     base_key: [u8; 32],
@@ -194,6 +170,9 @@ impl SessionKeyManager {
     }
 }
 
+// ZeroizeOnDrop is automatically handled by #[zeroize(drop)]
+// No manual impl needed
+
 /// Combined session state (replay + keys)
 pub struct SecureSession {
     replay_window: ReplayWindow,
@@ -204,8 +183,12 @@ pub struct SecureSession {
 
 impl SecureSession {
     /// Create new secure session
+    /// Note: Uses direct crate import instead of super::handshake
     pub fn new(session_keys: SessionKeys, max_epochs: u32) -> Self {
-        let key_manager = SessionKeyManager::new(session_keys.tx_key, max_epochs);
+        let key_manager = SessionKeyManager::new(
+            session_keys.tx_key, // Use tx as base
+            max_epochs,
+        );
 
         Self {
             replay_window: ReplayWindow::new(),
@@ -224,6 +207,9 @@ impl SecureSession {
             return None;
         }
 
+        // TODO: Decrypt with self.key_manager.rx_key()
+        // let plaintext = decrypt(ciphertext, self.key_manager.rx_key());
+
         self.packets_processed += 1;
 
         // Auto-rotate if needed
@@ -240,6 +226,9 @@ impl SecureSession {
 
     /// Encrypt outgoing packet
     pub fn process_outgoing(&mut self, _seq: u64, plaintext: &[u8]) -> Vec<u8> {
+        // TODO: Encrypt with self.key_manager.tx_key()
+        // let ciphertext = encrypt(plaintext, self.key_manager.tx_key());
+        
         self.packets_processed += 1;
         plaintext.to_vec() // Placeholder
     }
@@ -248,6 +237,14 @@ impl SecureSession {
     pub fn session_id(&self) -> &[u8; 16] {
         &self.session_id
     }
+}
+
+/// Session keys from handshake
+#[derive(Clone)]
+pub struct SessionKeys {
+    pub session_id: [u8; 16],
+    pub tx_key: [u8; 32],
+    pub rx_key: [u8; 32],
 }
 
 #[cfg(test)]
@@ -322,7 +319,7 @@ mod tests {
 
         // Not needed initially
         assert!(!manager.needs_rotation(0));
-
+        
         // Packet threshold reached
         assert!(manager.needs_rotation(1_000_001));
     }
@@ -334,7 +331,7 @@ mod tests {
             tx_key: [2u8; 32],
             rx_key: [3u8; 32],
         };
-
+        
         let session = SecureSession::new(session_keys, 5);
         assert_eq!(session.session_id(), &[1u8; 16]);
     }
