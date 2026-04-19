@@ -4,6 +4,8 @@ members = [
     "packages/mesh",
     "packages/cli",
     "packages/xdp-firewall",
+]
+exclude = [
     "packages/xdp-firewall-ebpf",
 ]
 resolver = "2"
