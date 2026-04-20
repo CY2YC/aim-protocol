@@ -13,8 +13,8 @@ no_std = ["serde/alloc"]
 
 [dependencies]
 # NIST PQC - FIPS 203/204 compliant
-ml-kem = { workspace = true, default-features = false }
-ml-dsa = { workspace = true, default-features = false }
+ml-kem = { workspace = true }
+ml-dsa = { workspace = true }
 
 # Cryptographic utilities
 sha2 = { workspace = true, default-features = false }
