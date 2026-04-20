@@ -51,7 +51,7 @@ static RATE_LIMIT: LruHashMap<u32, u64> = LruHashMap::with_max_entries(16384, 0)
 
 /// Trusted zone whitelist
 #[map]
-static TRUSTED_ZONES: HashMap<u32, u32> = HashMap::with_max_entries(256, 0);
+static TRUSTED_ZONES: HashMap<u32, u8> = HashMap::with_max_entries(256, 0);
 
 /// Per-CPU packet statistics
 #[map]
@@ -132,7 +132,7 @@ fn try_aim_firewall(_ctx: &XdpContext) -> Result<u32, ()> {
 
     // Extract IP addresses and protocol
     let src_ip = unsafe { *((ip_start + 12) as *const u32) };
-    let dst_ip = unsafe { *((ip_start + 16) as *const u32) }};
+    let dst_ip = unsafe { *((ip_start + 16) as *const u32) };
     let protocol = unsafe { *((ip_start + 9) as *const u8) };
     let ip_header_len = (unsafe { *(ip_start as *const u8) } & 0x0F) as usize * 4;
 
