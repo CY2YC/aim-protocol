@@ -138,4 +138,3 @@ jobs:
     - name: Check eBPF compilation
       working-directory: packages/xdp-firewall-ebpf
       run: cargo +nightly check -Z build-std=core --target bpfel-unknown-none
-      continue-on-error: true  # Allow this to fail until eBPF package is fully configured
